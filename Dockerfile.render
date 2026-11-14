@@ -1,0 +1,31 @@
+# Production image for Render: same as ./Dockerfile, but the model bundle is downloaded
+# from a GitHub Release and verified against its published SHA-256 before use.
+FROM python:3.13-slim
+
+ARG BUNDLE_REPO=Santiagoo27/procurement-risk-radar
+ARG BUNDLE_TAG=model-2026-11-14
+
+# LightGBM needs the OpenMP runtime; curl fetches the bundle.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
+
+WORKDIR /app
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src ./src
+RUN uv sync --frozen --no-dev --extra api
+
+RUN base="https://github.com/${BUNDLE_REPO}/releases/download/${BUNDLE_TAG}" \
+    && curl -fsSL -o serving_bundle.tar.gz "$base/serving_bundle.tar.gz" \
+    && curl -fsSL -o serving_bundle.sha256 "$base/serving_bundle.sha256" \
+    && sha256sum -c serving_bundle.sha256 \
+    && tar xzf serving_bundle.tar.gz \
+    && rm serving_bundle.tar.gz serving_bundle.sha256
+
+RUN useradd --create-home --uid 1000 app && chown -R app /app
+USER app
+
+ENV BUNDLE_DIR=/app/serving_bundle PATH="/app/.venv/bin:$PATH" PORT=10000
+EXPOSE 10000
+CMD ["sh", "-c", "exec uvicorn procurement_risk.api.app:create_app --factory --host 0.0.0.0 --port ${PORT:-10000}"]

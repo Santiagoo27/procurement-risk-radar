@@ -1,0 +1,15 @@
+# Render Blueprint: free Docker web service for the prediction API.
+# Deploys only after GitHub checks (CI tests + Docker smoke tests) pass on main.
+services:
+  - type: web
+    name: procurement-risk-radar
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: "*"

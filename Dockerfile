@@ -1,4 +1,4 @@
-# Prediction API image (Hugging Face Space, Docker SDK). Expects ./serving_bundle in the
+# Prediction API image for CI and local runs. Expects ./serving_bundle in the
 # build context: `python -m procurement_risk export-bundle ...` or `demo-bundle`.
 FROM python:3.13-slim
 
@@ -19,4 +19,5 @@ USER app
 
 ENV BUNDLE_DIR=/app/serving_bundle PATH="/app/.venv/bin:$PATH" PORT=7860
 EXPOSE 7860
-CMD ["uvicorn", "procurement_risk.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "7860"]
+# Hosting platforms (e.g. Render) pass the port in $PORT.
+CMD ["sh", "-c", "exec uvicorn procurement_risk.api.app:create_app --factory --host 0.0.0.0 --port ${PORT:-7860}"]

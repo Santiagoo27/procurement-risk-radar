@@ -5,7 +5,9 @@ contract will later receive a **value addition** or a **time extension**.
 
 > Scores are statistical estimates for analysis, not allegations of wrongdoing.
 
-Interactive documentation (OpenAPI) is served at `/docs`.
+Interactive documentation (OpenAPI) is served at `/docs`. The public instance runs on
+Render's free plan and sleeps after 15 idle minutes, so the first request can take about a
+minute.
 
 ## Endpoints
 
@@ -56,11 +58,11 @@ for you.
 ## Example
 
 ```bash
-curl -s https://<space>.hf.space/buyers?q=medellin%20distrito
+curl -s https://<api-host>/buyers?q=medellin%20distrito
 ```
 
 ```bash
-curl -s -X POST https://<space>.hf.space/predict -H "Content-Type: application/json" -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","procurement_method":"Contratación directa","contract_type":"Prestación de servicios","award_value":40000000,"planned_duration_days":330,"supplier_is_natural_person":true}]}'
+curl -s -X POST https://<api-host>/predict -H "Content-Type: application/json" -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","procurement_method":"Contratación directa","contract_type":"Prestación de servicios","award_value":40000000,"planned_duration_days":330,"supplier_is_natural_person":true}]}'
 ```
 
 ## How scores are computed

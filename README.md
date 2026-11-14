@@ -14,7 +14,7 @@ countries can be added.
 [API reference](docs/api.md), the [model card](docs/model-card.md) and the
 [data audit](docs/data-audit.md). Next: Phase 3, a web demo with an interactive map.
 
-**Live API:** _deployment pending_ (Hugging Face Space, `/docs` for the interactive reference).
+**Live API:** _deployment pending_ on Render; `/docs` serves the interactive reference. The free instance sleeps after 15 idle minutes, so the first request can take about a minute.
 
 ## Results
 
@@ -90,8 +90,15 @@ uv run python -m procurement_risk model-card
 - the top signals behind each score.
 
 Features come from the **same SQL** used for training, which is checked by a parity test.
-The service runs in Docker on a Hugging Face Space, and CI builds the image, starts it and
-calls the API on every push.
+The service runs in Docker on Render's free plan ([`render.yaml`](render.yaml)). The model
+bundle is downloaded from a GitHub Release and checked against its SHA-256 before use. On
+every push, CI builds two images, starts each one and calls the API:
+
+- one with a synthetic bundle;
+- the production image with the real bundle, which was pickled on Windows and is loaded on
+  Linux.
+
+Render deploys only after those checks pass.
 
 ```bash
 curl -s -X POST <api-url>/predict -H "Content-Type: application/json"   -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","award_value":40000000,"planned_duration_days":330}]}'
