@@ -1,0 +1,11 @@
+data/
+mlruns/
+mlflow.db
+.venv/
+.git/
+.github/
+docs/
+tests/
+.superpowers/
+.env
+**/__pycache__/
