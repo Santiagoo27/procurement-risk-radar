@@ -10,7 +10,75 @@ countries can be added.
 > wrongdoing. This project reports amendment risk signals; it does not detect or claim
 > corruption or fraud.
 
-**Status:** Phase 0 complete — see the [data audit](docs/data-audit.md). Next: Phase 1 (features, baselines, model).
+**Status:** Phase 1 complete: a calibrated model, its [model card](docs/model-card.md) and
+the [data audit](docs/data-audit.md). Next: Phase 2, a prediction API.
+
+## Results
+
+Trained on 3.47M closed contracts signed 2019–2024 and split by signing date: train before
+2023, validation 2023-H1, **test 2023-07 to 2024-12 (1.14M contracts)**. Every model is scored
+on the same test period.
+
+| Target | Model | PR-AUC | ROC-AUC | Precision in top 5% |
+|---|---|---:|---:|---:|
+| Value addition (7.9% of test) | Base rate | 0.079 | 0.500 | 0.078 |
+| | Buyer's historical rate | 0.178 | 0.697 | 0.247 |
+| | Logistic regression | 0.203 | 0.698 | 0.299 |
+| | **LightGBM (calibrated)** | **0.243** | **0.758** | **0.344** |
+| Time extension (11.3% of test) | Base rate | 0.113 | 0.500 | 0.111 |
+| | Buyer's historical rate | 0.247 | 0.706 | 0.392 |
+| | Logistic regression | 0.258 | 0.697 | 0.381 |
+| | **LightGBM (calibrated)** | **0.323** | **0.763** | **0.448** |
+
+Among the 5% of contracts the model ranks highest, **34% end up with a value addition**, which
+is 4.4 times the base rate. For time extensions the figure is 45%, or 4 times the base rate.
+
+<p>
+  <img src="docs/figures/has_value_addition-pr-curves.png" width="32%" alt="Precision-recall curves, value addition">
+  <img src="docs/figures/has_value_addition-calibration.png" width="32%" alt="Calibration, value addition">
+  <img src="docs/figures/has_value_addition-importance.png" width="32%" alt="Top features, value addition">
+</p>
+
+The strongest signals are the buyer's own amendment history, the planned duration, the
+signing month (contracts signed early in the year are amended far more often), and the
+buyer's sector and region.
+
+Limitations, covered in full in the [model card](docs/model-card.md):
+
+- The text-recovered labels have about 84% precision.
+- SECOP does not publish the size of each addition, so the model predicts whether one
+  happens, not how large it is.
+- The most recent quarter shows a lower value-addition rate (5% for contracts signed in
+  2024-Q4, against 6–14% earlier), so some late additions may not be recorded yet.
+
+## How it works
+
+1. **Ingestion and privacy.** SECOP II contracts, amendments and procurement processes are
+   downloaded from the Socrata API into Parquet. Only allowlisted columns are kept, and
+   natural-person suppliers are hashed with a secret salt.
+2. **Canonical schema.** A Colombia adapter maps the raw tables into an OCDS-inspired schema
+   (`award_value`, `n_bidders`, `planned_duration_days`, …), so another country only needs
+   a new adapter.
+3. **Labels.** A value addition counts when it is recorded as such *or* when a generic
+   amendment's text describes one. The audit found 71% are hidden this way. A contract is
+   labelled only once its planned end date is more than 180 days in the past.
+4. **No leakage.** Every feature is known at signing time. Buyer and supplier history uses
+   a point-in-time ASOF join, so a contract only sees labels that were observable before it
+   was signed, and the test covers same-day and late-record edge cases.
+5. **Models.** Three baselines and LightGBM, early-stopped on the validation period. Isotonic
+   calibration is fitted on the validation period only. Ranking metrics use raw scores and
+   probability metrics use calibrated ones.
+6. **Tracking and explanations.** Runs, metrics and the calibrated model are registered in
+   MLflow. Per-contract explanations are LightGBM SHAP contributions.
+
+```bash
+uv run python -m procurement_risk build-dataset --as-of 2026-11-14
+uv run python -m procurement_risk train --target has_value_addition
+uv run python -m procurement_risk train --target has_time_extension
+uv run python -m procurement_risk model-card
+```
+
+## Data audit
 
 Key findings from the audit (contracts signed 2021–2022, 1.27M contracts):
 
