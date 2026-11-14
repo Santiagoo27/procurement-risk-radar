@@ -244,6 +244,12 @@ def render_report(results: dict[str, Any], decisions: dict[str, Any]) -> str:
     ]
     for col, (verdict, reason) in decisions["features"].items():
         lines.append(f"| `{col}` | {verdict} | {reason} |")
-    lines += ["", "## Text-matcher sample (for the manual precision check)", ""]
-    lines += [f"{i}. {s}" for i, s in enumerate(h["sample"], 1)]
+    lines += [
+        "",
+        "## Text-matcher sample",
+        "",
+        f"{len(h['sample'])} matched descriptions were reviewed by hand for the precision "
+        "check. They are kept out of this report because amendment text can contain personal "
+        "names and ID numbers.",
+    ]
     return "\n".join(lines) + "\n"

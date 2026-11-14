@@ -47,3 +47,14 @@ def test_to_arrow_types():
     assert table.schema.field("es_pyme").type == pa.bool_()
     assert table.schema.field("nombre_entidad").type == pa.string()
     assert table.column("valor_del_contrato").to_pylist() == [100.0, None]
+
+
+def test_parse_rejects_non_finite_and_huge_numbers():
+    assert parse_money("nan") is None
+    assert parse_money("inf") is None
+    assert parse_money("-Infinity") is None
+    assert parse_int("1e400") is None
+    assert parse_int("inf") is None
+    assert parse_int("99999999999999999999") is None
+    table = to_arrow([{"dias_adicionados": "99999999999999999999"}], ["dias_adicionados"])
+    assert table.column("dias_adicionados").to_pylist() == [None]

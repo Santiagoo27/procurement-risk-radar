@@ -38,6 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--as-of", type=date.fromisoformat, required=True)
     audit.add_argument("--sample-precision", type=float, default=None,
                        help="Manual precision (0-1) of the text matcher on the sample.")
+    audit.add_argument("--sample-out", type=Path,
+                       default=config.DATA_DIR / "audit" / "value_addition_sample.txt",
+                       help="Where to write the text sample (keep it out of git).")
     return parser
 
 
@@ -59,6 +62,8 @@ def _run_audit(args: argparse.Namespace) -> None:
     decisions = decide(results)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_report(results, decisions), encoding="utf-8")
+    args.sample_out.parent.mkdir(parents=True, exist_ok=True)
+    args.sample_out.write_text("\n".join(results["hidden"]["sample"]) + "\n", encoding="utf-8")
     print(f"wrote {args.out}; primary target: {decisions['primary_target']}")
 
 

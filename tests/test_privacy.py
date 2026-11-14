@@ -15,7 +15,7 @@ SALT = b"test-salt"
 
 @pytest.mark.parametrize("doc_type", ["NIT", " nit ", "Nit"])
 def test_nit_is_company(doc_type):
-    assert is_natural_person(doc_type) is False
+    assert is_natural_person(doc_type, "900123456") is False
 
 
 @pytest.mark.parametrize(
@@ -47,10 +47,10 @@ def test_scrub_hashes_natural_person():
 
 
 def test_scrub_keeps_company_supplier():
-    row = {"tipodocproveedor": "NIT", "documento_proveedor": "900123",
+    row = {"tipodocproveedor": "NIT", "documento_proveedor": "900123456",
            "proveedor_adjudicado": "ACME SAS", "codigo_proveedor": "55"}
     out = scrub_contract(row, SALT)
-    assert out["documento_proveedor"] == "900123"
+    assert out["documento_proveedor"] == "900123456"
     assert out["proveedor_adjudicado"] == "ACME SAS"
     assert out["codigo_proveedor"] == "55"
     assert out["supplier_is_natural_person"] is False
@@ -80,3 +80,27 @@ def test_load_salt_returns_bytes():
 
 def test_project_keeps_only_listed_columns():
     assert project({"a": "1", "b": "2"}, ["a", "c"]) == {"a": "1", "c": None}
+
+
+@pytest.mark.parametrize("number", ["900123456", "900.123.456-7", "9001234567", "830000001"])
+def test_company_nit_numbers(number):
+    assert is_natural_person("NIT", number) is False
+
+
+@pytest.mark.parametrize("number", [None, "", "79123456", "1020304050", "1020304050-1", "12345"])
+def test_nit_of_natural_person_is_hashed(number):
+    assert is_natural_person("NIT", number) is True
+
+
+def test_scrub_hashes_sole_proprietor_with_nit():
+    row = {"tipodocproveedor": "NIT", "documento_proveedor": "79123456-3",
+           "proveedor_adjudicado": "PEDRO GOMEZ"}
+    out = scrub_contract(row, SALT)
+    assert out["supplier_is_natural_person"] is True
+    assert out["proveedor_adjudicado"] is None
+    assert out["documento_proveedor"].startswith("np_")
+
+
+def test_scrub_rejects_empty_salt():
+    with pytest.raises(MissingSaltError):
+        scrub_contract({"tipodocproveedor": "Pasaporte"}, b"")

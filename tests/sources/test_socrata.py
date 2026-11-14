@@ -86,3 +86,33 @@ def test_reads_app_token_from_env(monkeypatch):
     client, _ = make_client([page()], requests)
     list(client.iter_pages("abcd-1234", select=["x"]))
     assert requests[0].headers["X-App-Token"] == "envtok"
+
+
+def test_honours_retry_after_and_caps_wait():
+    requests = []
+    client, sleeps = make_client(
+        [httpx.Response(429, headers={"Retry-After": "7"}),
+         httpx.Response(503, headers={"Retry-After": "9999"}), page("a"), page()],
+        requests, app_token="",
+    )
+    list(client.iter_pages("abcd-1234", select=["x"]))
+    assert sleeps == [7.0, 60.0]
+
+
+def test_backoff_is_capped_and_budget_is_minutes():
+    requests = []
+    client, sleeps = make_client([httpx.Response(500)] * 20, requests, app_token="")
+    assert client.max_retries >= 10
+    with pytest.raises(SocrataError):
+        list(client.iter_pages("abcd-1234", select=["x"]))
+    assert max(sleeps) <= 60.0
+    assert sum(sleeps) >= 300.0
+
+
+def test_retries_truncated_json():
+    requests = []
+    client, sleeps = make_client(
+        [httpx.Response(200, content=b'[{"x": '), page("a"), page()], requests, app_token=""
+    )
+    assert len(list(client.iter_pages("abcd-1234", select=["x"]))) == 1
+    assert len(sleeps) == 1

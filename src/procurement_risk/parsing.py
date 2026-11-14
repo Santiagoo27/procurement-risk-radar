@@ -5,6 +5,7 @@ Socrata returns every field as a string. Unparseable values become null instead 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
@@ -37,14 +38,18 @@ def parse_money(v: Any) -> float | None:
     if v is None:
         return None
     try:
-        return float(str(v).strip())
+        value = float(str(v).strip())
     except ValueError:
         return None
+    return value if math.isfinite(value) else None
+
+
+_INT64_MAX = 2**63 - 1
 
 
 def parse_int(v: Any) -> int | None:
     money = parse_money(v)
-    if money is None or money != money:  # NaN
+    if money is None or abs(money) > _INT64_MAX:
         return None
     return int(money)
 

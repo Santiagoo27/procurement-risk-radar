@@ -11,6 +11,7 @@ import httpx
 from procurement_risk import config
 
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+MAX_WAIT_SECONDS = 60.0
 
 
 class SocrataError(RuntimeError):
@@ -23,7 +24,7 @@ class SocrataClient:
         domain: str = config.SOCRATA_DOMAIN,
         app_token: str | None = None,
         page_size: int = 50_000,
-        max_retries: int = 5,
+        max_retries: int = 10,
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
         timeout: float = 120.0,
@@ -41,6 +42,7 @@ class SocrataClient:
     def _get(self, path: str, params: dict[str, str]) -> list[dict[str, str]]:
         last_error: str = ""
         for attempt in range(self.max_retries):
+            wait = min(2.0 * 2**attempt, MAX_WAIT_SECONDS)
             try:
                 response = self._http.get(path, params=params)
             except (httpx.TimeoutException, httpx.TransportError) as exc:
@@ -48,10 +50,17 @@ class SocrataClient:
             else:
                 if response.status_code not in RETRYABLE_STATUS:
                     response.raise_for_status()
-                    return response.json()
-                last_error = f"HTTP {response.status_code}"
+                    try:
+                        return response.json()
+                    except ValueError as exc:  # truncated body
+                        last_error = f"invalid JSON: {exc}"
+                else:
+                    last_error = f"HTTP {response.status_code}"
+                    retry_after = response.headers.get("Retry-After", "")
+                    if retry_after.strip().isdigit():
+                        wait = min(float(retry_after), MAX_WAIT_SECONDS)
             if attempt < self.max_retries - 1:
-                self._sleep(2.0 * 2**attempt)
+                self._sleep(wait)
         raise SocrataError(f"{path} failed after {self.max_retries} attempts: {last_error}")
 
     def iter_pages(

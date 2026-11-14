@@ -32,7 +32,7 @@ def read_dir(path):
 def test_ingest_contracts_writes_scrubbed_parquet(tmp_path):
     client = FakeClient([
         [contract(1, "Cédula de Ciudadanía", "CC-12345", "JUAN PEREZ"),
-         contract(2, "NIT", "900123", "ACME SAS")],
+         contract(2, "NIT", "900123456", "ACME SAS")],
         [contract(3, None, "CC-555", "ANA")],
     ])
     out = ingest_contracts(client, tmp_path, date(2021, 1, 1), date(2022, 1, 1), SALT)
@@ -69,3 +69,19 @@ def test_ingest_contracts_requires_salt(monkeypatch, tmp_path):
         cli.main(["ingest", "contracts", "--from", "2021-01-01", "--to", "2021-02-01",
                   "--out", str(tmp_path)])
     assert exc.value.code != 0
+
+
+def test_failed_ingest_keeps_previous_data(tmp_path):
+    from procurement_risk.sources.socrata import SocrataError
+
+    ingest_amendments(FakeClient([[{"id_contrato": "old"}]]), tmp_path)
+
+    class Failing:
+        def iter_pages(self, *a, **k):
+            yield [{"id_contrato": "new"}]
+            raise SocrataError("boom")
+
+    with pytest.raises(SocrataError):
+        ingest_amendments(Failing(), tmp_path)
+    assert [r["id_contrato"] for r in read_dir(tmp_path / "amendments")] == ["old"]
+    assert not [p for p in tmp_path.iterdir() if p.name != "amendments"]

@@ -52,5 +52,8 @@ jobs:
           shopt -s nullglob
           files=(data/snapshots/*.parquet)
           if [ ${#files[@]} -gt 0 ]; then
-            gh release upload snapshots "${files[@]}" data/snapshots/watermark.json --clobber
+            # Snapshot files are never overwritten (names are unique per run); only the
+            # watermark is replaced, and only after the data upload succeeded.
+            gh release upload snapshots "${files[@]}"
+            gh release upload snapshots data/snapshots/watermark.json --clobber
           fi

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable, Iterable, Sequence
 from datetime import date
 from pathlib import Path
@@ -30,12 +31,21 @@ def _write_pages(
     columns: Sequence[str],
     transform: Callable[[dict[str, str]], dict[str, Any]],
 ) -> Path:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for stale in out_dir.glob("part-*.parquet"):
-        stale.unlink()
-    for i, rows in enumerate(pages):
-        table = to_arrow([transform(r) for r in rows], columns)
-        pq.write_table(table, out_dir / f"part-{i:05d}.parquet")
+    """Write all pages to a temporary sibling directory and swap it in only on success."""
+    tmp_dir = out_dir.with_name(out_dir.name + ".tmp")
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True)
+    try:
+        for i, rows in enumerate(pages):
+            table = to_arrow([transform(r) for r in rows], columns)
+            pq.write_table(table, tmp_dir / f"part-{i:05d}.parquet")
+    except BaseException:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    tmp_dir.rename(out_dir)
     return out_dir
 
 

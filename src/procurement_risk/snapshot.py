@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import duckdb
@@ -46,6 +46,7 @@ def take_snapshot(
     watermark: Watermark,
     run_date: date,
     full: bool = False,
+    run_id: str | None = None,
 ) -> tuple[Path | None, Watermark]:
     """Fetch rows updated after the watermark (or everything) and write one Parquet file.
 
@@ -55,7 +56,7 @@ def take_snapshot(
     where = None
     if not baseline:
         where = (
-            "ultima_actualizacion > "
+            "ultima_actualizacion >= "
             f"'{watermark.last_updated.isoformat(timespec='milliseconds')}'"
         )
 
@@ -76,7 +77,10 @@ def take_snapshot(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     prefix = "baseline" if baseline else "changes"
-    path = out_dir / f"{prefix}-{run_date.isoformat()}.parquet"
+    run_id = run_id or datetime.now(UTC).strftime("%H%M%SZ")
+    path = out_dir / f"{prefix}-{run_date.isoformat()}-{run_id}.parquet"
+    if path.exists():
+        raise FileExistsError(f"{path} already exists; snapshot history is never overwritten")
     pq.write_table(deduped, path)
 
     seen = pc.max(combined.column("ultima_actualizacion")).as_py()

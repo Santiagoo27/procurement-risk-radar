@@ -29,8 +29,8 @@ to measure amendment size later, a nightly GitHub Actions job
 ([`snapshot.yml`](.github/workflows/snapshot.yml)) records every contract whose
 `ultima_actualizacion` changed since the previous run: contract value, end date, added
 days and status. Files are attached to the
-[`snapshots` release](../../releases/tag/snapshots): `baseline-YYYY-MM-DD.parquet` (full
-download, also re-taken on the first day of each month) and `changes-YYYY-MM-DD.parquet`.
+[`snapshots` release](../../releases/tag/snapshots): `baseline-YYYY-MM-DD-HHMMSSZ.parquet` (full
+download, also re-taken on the first day of each month) and `changes-YYYY-MM-DD-HHMMSSZ.parquet`. Files are never overwritten.
 
 ## Development
 

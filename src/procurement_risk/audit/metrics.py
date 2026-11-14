@@ -24,7 +24,8 @@ def open_audit_db(raw_dir: Path) -> duckdb.DuckDBPyConnection:
     )
     con.execute(f"""
         CREATE TEMP TABLE value_added AS
-        SELECT DISTINCT id_contrato FROM amendments WHERE tipo = '{VALUE_ADDITION}'
+        SELECT DISTINCT id_contrato FROM amendments
+        WHERE tipo = '{VALUE_ADDITION}' AND id_contrato IS NOT NULL
     """)
     # One process row per portfolio id: the one with the largest awarded value.
     con.execute("""
@@ -77,8 +78,8 @@ def hidden_value_additions(con: duckdb.DuckDBPyConnection, sample_size: int = 50
         "hidden_matches": hidden,
         "hidden_share": hidden / total if total else 0.0,
         "hidden_contracts": con.execute(
-            "SELECT count(DISTINCT id_contrato) FROM hidden "
-            "WHERE id_contrato NOT IN (SELECT id_contrato FROM value_added)"
+            "SELECT count(DISTINCT id_contrato) FROM hidden h WHERE NOT EXISTS "
+            "(SELECT 1 FROM value_added v WHERE v.id_contrato = h.id_contrato)"
         ).fetchone()[0],
         "sample": sample,
     }

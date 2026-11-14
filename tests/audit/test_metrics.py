@@ -137,3 +137,13 @@ def test_bidder_coverage(raw):
     assert out["single_bidder_share"] == 1.0
 
 
+
+
+def test_hidden_contracts_ignores_null_ids(raw):
+    write(raw, "contracts", [c("1"), c("2")], CONTRACT_COLS)
+    write(raw, "amendments", [
+        a("e1", "1", "Adicion en el valor"), a("e0", None, "Adicion en el valor"),
+        a("h1", "2", "Modificacion General", "ADICIÓN EN VALOR AL CONTRATO"),
+    ], config.AMENDMENT_COLUMNS)
+    write(raw, "processes", [], config.PROCESS_COLUMNS)
+    assert hidden_value_additions(open_audit_db(raw))["hidden_contracts"] == 1

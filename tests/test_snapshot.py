@@ -34,7 +34,7 @@ def test_baseline_when_no_watermark(tmp_path):
     client = FakeClient([[row("a", "2026-11-14T10:00:00.000")]])
     path, wm = take_snapshot(client, tmp_path, Watermark(None), RUN)
     assert client.wheres == [None]
-    assert path.name == "baseline-2026-11-15.parquet"
+    assert path.name.startswith("baseline-2026-11-15")
     assert wm.last_updated == datetime(2026, 11, 14, 10)
 
 
@@ -48,8 +48,8 @@ def test_full_flag_forces_baseline(tmp_path):
 def test_incremental_uses_watermark(tmp_path):
     client = FakeClient([[row("a", "2026-11-14T10:00:00.000")]])
     path, _ = take_snapshot(client, tmp_path, Watermark(datetime(2026, 11, 14)), RUN)
-    assert "ultima_actualizacion > '2026-11-14T00:00:00" in client.wheres[0]
-    assert path.name == "changes-2026-11-15.parquet"
+    assert "ultima_actualizacion >= '2026-11-14T00:00:00" in client.wheres[0]
+    assert path.name.startswith("changes-2026-11-15")
 
 
 def test_dedupes_same_contract_same_update(tmp_path):
@@ -98,3 +98,16 @@ def test_failure_does_not_advance_watermark(tmp_path, monkeypatch):
                   "--run-date", "2026-11-15"])
     assert wm_path.read_text() == before
     assert list(tmp_path.glob("*.parquet")) == []
+
+
+def test_same_day_reruns_never_overwrite(tmp_path):
+    wm = Watermark(datetime(2026, 11, 1))
+    p1, _ = take_snapshot(FakeClient([[row("a", "2026-11-14T10:00:00.000")]]), tmp_path, wm,
+                          RUN, run_id="0700")
+    p2, _ = take_snapshot(FakeClient([[row("b", "2026-11-14T11:00:00.000")]]), tmp_path, wm,
+                          RUN, run_id="0915")
+    assert p1 != p2
+    assert len(list(tmp_path.glob("changes-*.parquet"))) == 2
+    with pytest.raises(FileExistsError):
+        take_snapshot(FakeClient([[row("c", "2026-11-14T12:00:00.000")]]), tmp_path, wm, RUN,
+                      run_id="0700")
