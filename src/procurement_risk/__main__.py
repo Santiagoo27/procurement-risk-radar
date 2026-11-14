@@ -31,7 +31,35 @@ def _build_parser() -> argparse.ArgumentParser:
     snap.add_argument("--out", type=Path, default=config.DATA_DIR / "snapshots")
     snap.add_argument("--run-date", type=date.fromisoformat, default=None)
     snap.add_argument("--full", action="store_true", help="Re-download every contract.")
+
+    audit = commands.add_parser("audit", help="Run the Phase 0 data audit.")
+    audit.add_argument("--raw", type=Path, default=config.DATA_DIR / "raw")
+    audit.add_argument("--out", type=Path, default=Path("docs") / "data-audit.md")
+    audit.add_argument("--as-of", type=date.fromisoformat, required=True)
+    audit.add_argument("--sample-precision", type=float, default=None,
+                       help="Manual precision (0-1) of the text matcher on the sample.")
     return parser
+
+
+def _run_audit(args: argparse.Namespace) -> None:
+    from procurement_risk.audit import metrics
+    from procurement_risk.audit.report import decide, render_report
+
+    con = metrics.open_audit_db(args.raw)
+    results = {
+        "as_of": args.as_of,
+        "sample_precision": args.sample_precision,
+        "label_rates": metrics.label_rates_by_year(con),
+        "hidden": metrics.hidden_value_additions(con),
+        "value_vs_award": metrics.value_vs_award(con),
+        "end_date": metrics.end_date_vs_duration(con),
+        "closure": metrics.closure_states(con, args.as_of),
+        "bidders": metrics.bidder_coverage(con),
+    }
+    decisions = decide(results)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(render_report(results, decisions), encoding="utf-8")
+    print(f"wrote {args.out}; primary target: {decisions['primary_target']}")
 
 
 def _run_snapshot(args: argparse.Namespace) -> None:
@@ -75,6 +103,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_ingest(args, parser)
     elif args.command == "snapshot":
         _run_snapshot(args)
+    elif args.command == "audit":
+        _run_audit(args)
 
 
 if __name__ == "__main__":
