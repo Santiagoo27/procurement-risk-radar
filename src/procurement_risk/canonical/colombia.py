@@ -13,6 +13,8 @@ import duckdb
 
 from procurement_risk.audit.metrics import HIDDEN_TYPES, VALUE_ADDITION
 
+MAX_DURATION_DAYS = 3650  # longer planned durations are data-entry errors -> null
+
 _UNIT_DAYS = """
     CASE
         WHEN u LIKE 'dia%' THEN 1.0
@@ -51,8 +53,8 @@ def build_canonical(con: duckdb.DuckDBPyConnection) -> None:
             c.fecha_de_fin_del_contrato AS current_end_at,
             coalesce(p.valor_total_adjudicacion, p.precio_base) AS award_value,
             p.precio_base AS tender_budget,
-            CASE WHEN p.duracion > 0 THEN p.duracion * ({_UNIT_DAYS}) END
-                AS planned_duration_days,
+            CASE WHEN p.duracion > 0 AND p.duracion * ({_UNIT_DAYS}) <= {MAX_DURATION_DAYS}
+                 THEN p.duracion * ({_UNIT_DAYS}) END AS planned_duration_days,
             p.fecha_de_publicacion_del AS tender_published_at,
             p.proveedores_unicos_con AS n_bidders,
             p.respuestas_al_procedimiento AS n_responses,
@@ -64,7 +66,8 @@ def build_canonical(con: duckdb.DuckDBPyConnection) -> None:
             c.es_grupo AS supplier_is_group,
             c.habilita_pago_adelantado AS advance_payment_enabled,
             c.el_contrato_puede_ser_prorrogado AS extendable_clause,
-            c.dias_adicionados AS added_days
+            c.dias_adicionados AS added_days,
+            p.id_del_portafolio IS NOT NULL AS process_found
         FROM contracts c
         LEFT JOIN p ON c.proceso_de_compra = p.id_del_portafolio
     """)

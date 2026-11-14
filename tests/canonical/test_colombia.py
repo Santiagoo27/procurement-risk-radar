@@ -39,6 +39,7 @@ def test_missing_process_keeps_contract(make_raw):
 @pytest.mark.parametrize("value,unit,expected", [
     ("3", "Meses", 90.0), ("2", "Semana(s)", 14.0), ("1", "Año", 365.0),
     ("10", "Quincenas", None), ("0", "Dias", None), ("15", "Días", 15.0),
+    ("4000", "Dias", None), ("11", "Años", None),
 ])
 def test_duration_units(make_raw, value, unit, expected):
     raw = make_raw(

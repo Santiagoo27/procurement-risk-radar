@@ -41,7 +41,30 @@ def _build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--sample-out", type=Path,
                        default=config.DATA_DIR / "audit" / "value_addition_sample.txt",
                        help="Where to write the text sample (keep it out of git).")
+
+    build = commands.add_parser("build-dataset", help="Build the validated training dataset.")
+    build.add_argument("--raw", type=Path, default=config.DATA_DIR / "raw")
+    build.add_argument("--out", type=Path,
+                       default=config.DATA_DIR / "processed" / "dataset.parquet")
+    build.add_argument("--as-of", type=date.fromisoformat, required=True)
     return parser
+
+
+def _run_build_dataset(args: argparse.Namespace) -> None:
+    from procurement_risk.features.build import assemble_dataset
+    from procurement_risk.validate import DatasetValidationError, validate_dataset
+
+    df, summary = assemble_dataset(args.raw, args.as_of)
+    try:
+        validate_dataset(df)
+    except DatasetValidationError as exc:
+        print(f"error: dataset failed validation: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(args.out, index=False)
+    rates = ", ".join(f"{k}={v:.2%}" for k, v in summary.positive_rate.items())
+    print(f"wrote {args.out}: {summary.n_rows:,} closed contracts, "
+          f"{summary.n_without_process:,} without process; {rates}")
 
 
 def _run_audit(args: argparse.Namespace) -> None:
@@ -109,6 +132,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_snapshot(args)
     elif args.command == "audit":
         _run_audit(args)
+    elif args.command == "build-dataset":
+        _run_build_dataset(args)
 
 
 if __name__ == "__main__":
