@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from procurement_risk.api.schemas import ContractIn
 from procurement_risk.audit.metrics import open_audit_db
 from procurement_risk.canonical.colombia import build_canonical
 from procurement_risk.features.build import (
@@ -89,8 +90,8 @@ def test_serving_features_match_training(make_raw, demo_path, tmp_path):
     con = open_audit_db(raw)
     build_canonical(con)
     canonical = con.execute("SELECT * FROM canonical_contracts ORDER BY contract_id").df()
-    requests = [{f: (None if pd.isna(row[f]) else row[f]) if f in row else None
-                 for f in REQUEST_FIELDS} for _, row in canonical.iterrows()]
+    requests = [ContractIn(**_api_fields(row)).model_dump() for _, row in canonical.iterrows()]
+    assert all(r["n_lots"] is not None for r in requests)
     served = features_for(bundle, requests)
 
     cols = [*CATEGORICAL_FEATURES, *(c for c in NUMERIC_FEATURES if c not in HISTORY)]
@@ -146,3 +147,34 @@ def test_top_signals_vectorised_is_fast(demo):
     for row in signals[:50]:
         assert all(v > 0 for _, v in row)
         assert [v for _, v in row] == sorted((v for _, v in row), reverse=True)
+
+
+def test_signals_flag_inputs_that_were_not_provided(demo):
+    request = {"buyer_id": "DEMO-A", "signed_at": date(2024, 3, 1)}
+    features = features_for(demo, [request]).iloc[0]
+    out = score(demo, [request])[0]
+    for target in ("value_addition", "time_extension"):
+        for signal in out[target]["top_signals"]:
+            provided = not pd.isna(features[signal["feature"]])
+            assert signal["provided"] is provided
+            assert signal["label"].endswith("(not provided)") is (not provided)
+
+
+
+def _api_fields(row) -> dict:
+    """Canonical row -> the JSON-compatible values a client would send to the API."""
+    out = {}
+    for f in REQUEST_FIELDS:
+        value = row.get(f)
+        if value is None or (not isinstance(value, str) and pd.isna(value)):
+            continue
+        if isinstance(value, pd.Timestamp):
+            value = value.date()
+        elif isinstance(value, (np.bool_, bool)):
+            value = bool(value)
+        elif isinstance(value, (np.integer,)):
+            value = int(value)
+        elif isinstance(value, (np.floating,)):
+            value = float(value)
+        out[f] = value
+    return out

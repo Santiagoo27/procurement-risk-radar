@@ -39,6 +39,15 @@ BUYER_COLUMNS = (
 PRIOR_STRENGTH = 20.0
 
 
+CHECKED_LIBRARIES = ("lightgbm", "scikit-learn")
+
+
+def library_versions() -> dict[str, str]:
+    from importlib.metadata import version
+
+    return {lib: version(lib) for lib in ("lightgbm", "scikit-learn", "numpy", "pandas")}
+
+
 class BundleError(RuntimeError):
     """The bundle is incomplete or does not match this code version."""
 
@@ -58,6 +67,12 @@ def load_bundle(path: Path) -> Bundle:
     metadata = json.loads(meta_path.read_text(encoding="utf-8"))
     if metadata.get("features") != FEATURES:
         raise BundleError("bundle features do not match this code version's features")
+    recorded = metadata.get("library_versions", {})
+    current = library_versions()
+    for lib in CHECKED_LIBRARIES:
+        if recorded.get(lib) != current[lib]:
+            raise BundleError(f"bundle was built with {lib} {recorded.get(lib)}, "
+                              f"this environment has {current[lib]}")
     models = {}
     for target in TARGETS:
         model_path = path / "models" / f"{target}.joblib"
@@ -98,6 +113,7 @@ def _metadata(version: str, as_of: str, global_rates: dict, metrics: dict,
         "score_quantiles": quantiles,
         "prior_strength": PRIOR_STRENGTH,
         "disclaimer": DISCLAIMER,
+        "library_versions": library_versions(),
     }
 
 
@@ -143,6 +159,11 @@ def export_bundle(raw_dir: Path, dataset_path: Path, models_dir: Path, out_dir: 
     metrics = {t: json.loads((Path(models_dir) / t / "metrics.json").read_text(encoding="utf-8"))
                for t in TARGETS}
     dataset = pd.read_parquet(dataset_path)
+    # Supplier/buyer smoothing must use the rates the model was trained with: closed
+    # train-period rows of the training dataset, not labels rebuilt at the export date.
+    train_rows = temporal_split(dataset).train
+    if len(train_rows):
+        rates = {t: float(train_rows[t].astype(float).mean()) for t in TARGETS}
     test = temporal_split(dataset).test
     reference = test if len(test) else dataset
     quantiles = {t: _quantiles(models[t], reference) for t in TARGETS}

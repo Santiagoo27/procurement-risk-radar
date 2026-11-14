@@ -118,6 +118,13 @@ def _percentile(quantiles: list[float], p: float) -> float:
     return float(np.clip(np.searchsorted(np.asarray(quantiles), p, side="right") - 1, 0, 100))
 
 
+def _signal(name: str, contribution: float, feature_value: Any) -> dict[str, Any]:
+    provided = not pd.isna(feature_value)
+    label = FEATURE_LABELS[name] + ("" if provided else " (not provided)")
+    return {"feature": name, "label": label, "provided": provided,
+            "contribution": round(contribution, 4)}
+
+
 def score(bundle: Bundle, contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     features = features_for(bundle, contracts)
     any_model = next(iter(bundle.models.values()))
@@ -127,6 +134,10 @@ def score(bundle: Bundle, contracts: list[dict[str, Any]]) -> list[dict[str, Any
         for i, value in enumerate(features[col]):
             if value is not None and not pd.isna(value) and value not in known:
                 warnings[i].append(f"unseen value for {col}: {value}")
+
+    for i, contract in enumerate(contracts):
+        if not contract.get("signed_at"):
+            warnings[i].append("signed_at not provided; using today's date")
 
     results: list[dict[str, Any]] = [{"warnings": w} for w in warnings]
     for target, key in TARGET_KEYS.items():
@@ -138,8 +149,7 @@ def score(bundle: Bundle, contracts: list[dict[str, Any]]) -> list[dict[str, Any
             result[key] = {
                 "probability": float(probs[i]),
                 "percentile": _percentile(quantiles, float(probs[i])),
-                "top_signals": [{"feature": name, "label": FEATURE_LABELS[name],
-                                 "contribution": round(value, 4)}
+                "top_signals": [_signal(name, value, features.iloc[i][name])
                                 for name, value in signals[i]],
             }
     return results

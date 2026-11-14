@@ -9,8 +9,10 @@ import os
 import unicodedata
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from procurement_risk.api.schemas import BuyerOut, PredictRequest, PredictResponse
 from procurement_risk.serving.bundle import load_bundle
@@ -50,6 +52,13 @@ def create_app(bundle_dir: Path | str | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type"])
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Echoing the offending input could include NaN/Infinity, which is not valid JSON.
+        detail = [{"loc": list(e.get("loc", ())), "msg": e.get("msg"), "type": e.get("type")}
+                  for e in exc.errors()]
+        return JSONResponse(status_code=422, content={"detail": detail})
+
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok", "bundle_version": meta["bundle_version"]}
@@ -67,7 +76,10 @@ def create_app(bundle_dir: Path | str | None = None) -> FastAPI:
     @app.get("/buyers", response_model=list[BuyerOut])
     def search_buyers(q: str = Query(min_length=2, max_length=100),
                       limit: int = Query(20, ge=1, le=100)) -> list[dict]:
-        hits = buyers[buyers["_folded"].str.contains(_fold(q), regex=False, na=False)]
+        mask = buyers["_folded"].notna()
+        for word in _fold(q).split():
+            mask &= buyers["_folded"].str.contains(word, regex=False, na=False)
+        hits = buyers[mask]
         cols = ["buyer_id", "buyer_name", "buyer_department", "buyer_city"]
         hits = hits.sort_values("buyer_name").head(limit)[cols]
         return hits.astype(object).where(hits.notna(), None).to_dict(orient="records")

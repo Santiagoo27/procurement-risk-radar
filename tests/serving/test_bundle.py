@@ -92,3 +92,35 @@ def test_demo_bundle_cli(tmp_path):
 
     cli.main(["demo-bundle", "--out", str(tmp_path / "b")])
     assert load_bundle(tmp_path / "b").metadata["bundle_version"] == "demo"
+
+
+
+def test_export_uses_training_global_rates(make_raw, demo, tmp_path):
+    raw = make_raw(contracts=[
+        contract("1", "E1", "2019-01-01T00:00:00", "2019-06-01T00:00:00"),
+        contract("2", "E1", "2020-01-01T00:00:00", "2020-06-01T00:00:00"),
+        # open at the training as-of, closed (with an extension) at the later export as-of
+        {**contract("3", "E1", "2022-06-01T00:00:00", "2026-10-01T00:00:00"),
+         "dias_adicionados": "30"},
+    ])
+    dataset = tmp_path / "ds.parquet"
+    build_dataset(raw, dataset, date(2026, 11, 14))
+    models = tmp_path / "models"
+    for target in ("has_value_addition", "has_time_extension"):
+        (models / target).mkdir(parents=True)
+        shutil.copy(demo / "models" / f"{target}.joblib", models / target / "model.joblib")
+        (models / target / "metrics.json").write_text("{}", encoding="utf-8")
+    out = export_bundle(raw, dataset, models, tmp_path / "bundle", date(2027, 6, 1))
+    rates = load_bundle(out).metadata["global_rates"]
+    assert rates["has_time_extension"] == 0.0  # training rows (1, 2) had no extension
+
+
+def test_bundle_records_library_versions_and_rejects_mismatch(demo, tmp_path):
+    meta = json.loads((demo / "metadata.json").read_text(encoding="utf-8"))
+    assert {"lightgbm", "scikit-learn"} <= set(meta["library_versions"])
+    broken = tmp_path / "broken"
+    shutil.copytree(demo, broken)
+    meta["library_versions"]["lightgbm"] = "0.0.1"
+    (broken / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+    with pytest.raises(BundleError, match="lightgbm"):
+        load_bundle(broken)

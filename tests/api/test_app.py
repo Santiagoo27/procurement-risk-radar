@@ -111,3 +111,34 @@ def test_missing_bundle_fails_fast(tmp_path):
 
     with pytest.raises(BundleError):
         create_app(tmp_path / "nope")
+
+
+@pytest.mark.parametrize("raw_body", [
+    '{"contracts":[{"buyer_id":"DEMO-A","award_value":NaN}]}',
+    '{"contracts":[{"buyer_id":"DEMO-A","award_value":Infinity}]}',
+    '{"contracts":[{"buyer_id":"DEMO-A","planned_duration_days":Infinity}]}',
+    '{"contracts":[{"buyer_id":"DEMO-A","tender_budget":-Infinity}]}',
+])
+def test_predict_rejects_nan_and_infinity(client, raw_body):
+    resp = client.post("/predict", content=raw_body,
+                       headers={"Content-Type": "application/json"})
+    assert resp.status_code == 422
+    resp.json()  # the error body itself must be valid JSON
+
+
+@pytest.mark.parametrize("bad", [{"n_bidders": 10**30}, {"n_lots": 100_001},
+                                 {"award_value": 1e20}, {"tender_budget": 1e20},
+                                 {"signed_at": "2999-01-01"}])
+def test_predict_rejects_huge_values(client, bad):
+    resp = client.post("/predict", json={"contracts": [{"buyer_id": "DEMO-A", **bad}]})
+    assert resp.status_code == 422
+
+
+def test_buyers_search_matches_words_in_any_order(client):
+    found = client.get("/buyers", params={"q": "demo  alcaldia"}).json()
+    assert [b["buyer_id"] for b in found] == ["DEMO-C"]
+
+
+def test_minimal_request_warns_about_signing_date(client):
+    resp = client.post("/predict", json={"contracts": [{"buyer_id": "DEMO-A"}]})
+    assert any("signed_at" in w for w in resp.json()["results"][0]["warnings"])
