@@ -67,3 +67,32 @@ def test_dataset_has_no_forbidden_columns(make_raw, tmp_path):
     assert {"valor_del_contrato", "current_end_at", "added_days", "estado_contrato",
             "supplier_key"}.isdisjoint(cols)
     assert summary.positive_rate.keys() == set(TARGETS)
+
+
+def test_feature_frame_without_labels_matches_training_features(make_raw):
+    from pandas.testing import assert_frame_equal
+
+    from procurement_risk.audit.metrics import open_audit_db
+    from procurement_risk.canonical.colombia import build_canonical
+    from procurement_risk.features.build import _global_rates, feature_frame
+    from procurement_risk.features.history import build_history
+    from procurement_risk.features.labels import build_labels
+
+    raw = make_raw(contracts=[contract("1"), contract("2", codigo_entidad="E2"),
+                              contract("3", fecha_de_firma="2026-08-01T00:00:00",
+                                       fecha_de_fin_del_contrato="2026-10-01T00:00:00")],
+                   processes=[PROCESS])
+    training, _ = assemble_dataset(raw, AS_OF)
+
+    con = open_audit_db(raw)
+    build_canonical(con)
+    build_labels(con, AS_OF)
+    rates = _global_rates(con)
+    build_history(con, "buyer_id", "buyer", rates)
+    build_history(con, "supplier_key", "supplier", rates)
+    serving = feature_frame(con, closed_only=False)
+    assert set(serving["contract_id"]) == {"1", "2", "3"}
+    assert "has_value_addition" not in serving.columns
+    cols = ["contract_id", *CATEGORICAL_FEATURES, *NUMERIC_FEATURES]
+    got = serving[serving.contract_id.isin(training.contract_id)][cols].reset_index(drop=True)
+    assert_frame_equal(got, training[cols].reset_index(drop=True), check_dtype=False)

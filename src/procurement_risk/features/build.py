@@ -48,15 +48,9 @@ def _global_rates(con) -> dict[str, float]:
     return {"has_value_addition": row[0] or 0.0, "has_time_extension": row[1] or 0.0}
 
 
-def assemble_dataset(raw_dir: Path, as_of: date) -> tuple[pd.DataFrame, DatasetSummary]:
-    con = open_audit_db(raw_dir)
-    build_canonical(con)
-    build_labels(con, as_of)
-    rates = _global_rates(con)
-    build_history(con, "buyer_id", "buyer", rates)
-    build_history(con, "supplier_key", "supplier", rates)
-
-    df = con.execute("""
+# Feature SQL shared by training (assemble_dataset) and serving (serving.scoring), so a
+# contract always gets the same features in both places.
+FEATURE_SELECT = """
         SELECT
             c.contract_id, c.signed_at, c.buyer_id,
             c.buyer_department, c.buyer_order, c.buyer_sector, c.buyer_branch,
@@ -86,15 +80,34 @@ def assemble_dataset(raw_dir: Path, as_of: date) -> tuple[pd.DataFrame, DatasetS
             hb.buyer_prior_n, hb.buyer_prior_value_addition_rate, hb.buyer_prior_extension_rate,
             hs.supplier_prior_n, hs.supplier_prior_value_addition_rate,
             hs.supplier_prior_extension_rate,
-            l.has_value_addition, l.has_time_extension,
             c.process_found
         FROM canonical_contracts c
-        JOIN labels l USING (contract_id)
         LEFT JOIN history_buyer hb USING (contract_id)
         LEFT JOIN history_supplier hs USING (contract_id)
+"""
+
+
+def feature_frame(con, closed_only: bool) -> pd.DataFrame:
+    """Features for every canonical contract; with closed_only, joined to labels and closed."""
+    if not closed_only:
+        return con.execute(f"{FEATURE_SELECT} ORDER BY c.signed_at, c.contract_id").df()
+    return con.execute(f"""
+        SELECT f.*, l.has_value_addition, l.has_time_extension
+        FROM ({FEATURE_SELECT}) f JOIN labels l USING (contract_id)
         WHERE l.is_closed
-        ORDER BY c.signed_at, c.contract_id
+        ORDER BY f.signed_at, f.contract_id
     """).df()
+
+
+def assemble_dataset(raw_dir: Path, as_of: date) -> tuple[pd.DataFrame, DatasetSummary]:
+    con = open_audit_db(raw_dir)
+    build_canonical(con)
+    build_labels(con, as_of)
+    rates = _global_rates(con)
+    build_history(con, "buyer_id", "buyer", rates)
+    build_history(con, "supplier_key", "supplier", rates)
+
+    df = feature_frame(con, closed_only=True)
 
     summary = DatasetSummary(
         n_rows=len(df),
