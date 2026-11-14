@@ -10,7 +10,15 @@ countries can be added.
 > wrongdoing. This project reports amendment risk signals; it does not detect or claim
 > corruption or fraud.
 
-**Status:** Phase 0 — data audit.
+**Status:** Phase 0 complete — see the [data audit](docs/data-audit.md). Next: Phase 1 (features, baselines, model).
+
+Key findings from the audit (contracts signed 2021–2022, 1.27M contracts):
+
+- Most value additions (71%) are not recorded with the `Adicion en el valor` type; they hide under
+  generic modifications and are recovered from the amendment text (84% precision on a manual check).
+- `valor_del_contrato` already includes additions, and `estado_contrato` is not kept up to date, so
+  both are excluded; the original value comes from the awarded amount of the procurement process.
+- 86% of contracts are with natural persons, whose identities are hashed before storage.
 
 ## Data
 

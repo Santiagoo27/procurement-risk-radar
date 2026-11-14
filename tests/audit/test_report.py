@@ -54,7 +54,7 @@ def test_moved_end_date_excluded_and_bidders_allowed():
     d = decide(results(moved=0.9, coverage=0.9))
     assert d["features"]["fecha_de_fin_del_contrato"][0] == "excluded"
     assert d["features"]["proveedores_unicos_con"][0] == "allowed"
-    assert d["closed_states"] == ["terminado"]
+    assert "closed_states" not in d
     assert decide(results(coverage=0.5))["features"]["proveedores_unicos_con"][0] == "excluded"
 
 
@@ -115,3 +115,18 @@ def test_audit_cli_writes_sample_outside_report(tmp_path):
               "--sample-out", str(sample)])
     assert "JUAN PEREZ" not in out.read_text(encoding="utf-8")
     assert "JUAN PEREZ" in sample.read_text(encoding="utf-8")
+
+
+def test_closure_is_by_end_date_and_states_are_informational():
+    r = results()
+    text = render_report(r, decide(r))
+    assert "Closed contract:** current end date at least 180 days before" in text
+    assert "estado_contrato" in text  # explains why the state is not used
+
+
+def test_sample_file_has_one_description_per_line(tmp_path):
+    from procurement_risk.audit.report import write_sample
+
+    out = tmp_path / "s.txt"
+    write_sample(["line one\nline two", "other"], out)
+    assert out.read_text(encoding="utf-8").splitlines() == ["line one line two", "other"]

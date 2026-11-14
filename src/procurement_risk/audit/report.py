@@ -142,7 +142,9 @@ def decide(results: dict[str, Any]) -> dict[str, Any]:
             else ("excluded", f"coverage {cov:.0%} < {COVERAGE_MIN:.0%}")
         )
 
-    closed_states = [
+    # States whose contracts mostly ended long ago, including "open" ones such as
+    # "En ejecución", show that estado_contrato is not kept up to date.
+    stale_states = [
         r["estado_contrato"] for r in results["closure"]
         if r["estado_contrato"] is not None
         and r["share_end_before_as_of_minus_180d"] >= CLOSED_STATE_SHARE
@@ -151,7 +153,7 @@ def decide(results: dict[str, Any]) -> dict[str, Any]:
         "primary_target": target,
         "primary_target_reason": target_reason,
         "valor_del_contrato": valor,
-        "closed_states": closed_states,
+        "states_mostly_past_end_date": stale_states,
         "grace_days": GRACE_DAYS,
         "features": features,
     }
@@ -179,10 +181,12 @@ def render_report(results: dict[str, Any], decisions: dict[str, Any]) -> str:
         f"{decisions['primary_target_reason']}.",
         "- **Secondary target:** has_time_extension (`dias_adicionados > 0`).",
         f"- **`valor_del_contrato`:** {decisions['valor_del_contrato']}.",
-        "- **Closed contract:** state in "
-        f"{', '.join(f'`{s}`' for s in decisions['closed_states']) or '(none)'}, or end date at "
-        f"least {decisions['grace_days']} days before the as-of date. Only closed contracts are "
-        "labelled and used for training/evaluation.",
+        f"- **Closed contract:** current end date at least {decisions['grace_days']} days before "
+        "the as-of date. Only closed contracts are labelled and used for training/evaluation. "
+        "`estado_contrato` is not used: in states "
+        f"{', '.join(f'`{s}`' for s in decisions['states_mostly_past_end_date']) or '(none)'} "
+        f"at least {CLOSED_STATE_SHARE:.0%} of contracts ended more than "
+        f"{decisions['grace_days']} days ago, so the field is not kept up to date.",
         "",
         "## Label rates by signing year",
         "",
@@ -253,3 +257,12 @@ def render_report(results: dict[str, Any], decisions: dict[str, Any]) -> str:
         "names and ID numbers.",
     ]
     return "\n".join(lines) + "\n"
+
+
+def write_sample(sample: list[str], path) -> None:
+    """Write one description per line (internal whitespace collapsed) for the manual check."""
+    from pathlib import Path
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(" ".join(s.split()) + "\n" for s in sample), encoding="utf-8")

@@ -46,7 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _run_audit(args: argparse.Namespace) -> None:
     from procurement_risk.audit import metrics
-    from procurement_risk.audit.report import decide, render_report
+    from procurement_risk.audit.report import decide, render_report, write_sample
 
     con = metrics.open_audit_db(args.raw)
     results = {
@@ -62,8 +62,7 @@ def _run_audit(args: argparse.Namespace) -> None:
     decisions = decide(results)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_report(results, decisions), encoding="utf-8")
-    args.sample_out.parent.mkdir(parents=True, exist_ok=True)
-    args.sample_out.write_text("\n".join(results["hidden"]["sample"]) + "\n", encoding="utf-8")
+    write_sample(results["hidden"]["sample"], args.sample_out)
     print(f"wrote {args.out}; primary target: {decisions['primary_target']}")
 
 
