@@ -10,8 +10,11 @@ countries can be added.
 > wrongdoing. This project reports amendment risk signals; it does not detect or claim
 > corruption or fraud.
 
-**Status:** Phase 1 complete: a calibrated model, its [model card](docs/model-card.md) and
-the [data audit](docs/data-audit.md). Next: Phase 2, a prediction API.
+**Status:** Phase 2 complete. A prediction API serves the calibrated model; see the
+[API reference](docs/api.md), the [model card](docs/model-card.md) and the
+[data audit](docs/data-audit.md). Next: Phase 3, a web demo with an interactive map.
+
+**Live API:** _deployment pending_ (Hugging Face Space, `/docs` for the interactive reference).
 
 ## Results
 
@@ -77,6 +80,24 @@ uv run python -m procurement_risk train --target has_value_addition
 uv run python -m procurement_risk train --target has_time_extension
 uv run python -m procurement_risk model-card
 ```
+
+## Prediction API
+
+`POST /predict` takes the signing-time attributes of a contract and its buyer, and returns:
+
+- the calibrated probability of a value addition and of a time extension;
+- each probability's percentile against recent contracts;
+- the top signals behind each score.
+
+Features come from the **same SQL** used for training, which is checked by a parity test.
+The service runs in Docker on a Hugging Face Space, and CI builds the image, starts it and
+calls the API on every push.
+
+```bash
+curl -s -X POST <api-url>/predict -H "Content-Type: application/json"   -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","award_value":40000000,"planned_duration_days":330}]}'
+```
+
+See [docs/api.md](docs/api.md) for the fields, the response and the limitations.
 
 ## Data audit
 
