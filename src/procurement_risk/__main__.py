@@ -47,7 +47,24 @@ def _build_parser() -> argparse.ArgumentParser:
     build.add_argument("--out", type=Path,
                        default=config.DATA_DIR / "processed" / "dataset.parquet")
     build.add_argument("--as-of", type=date.fromisoformat, required=True)
+
+    train = commands.add_parser("train", help="Train baselines and the LightGBM risk model.")
+    train.add_argument("--dataset", type=Path,
+                       default=config.DATA_DIR / "processed" / "dataset.parquet")
+    train.add_argument("--target", choices=["has_value_addition", "has_time_extension"],
+                       required=True)
+    train.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
     return parser
+
+
+def _run_train(args: argparse.Namespace) -> None:
+    from procurement_risk.model.train import run_experiment
+
+    results = run_experiment(args.dataset, args.target, tracking_uri=args.tracking_uri)
+    print(f"test metrics for {args.target}:")
+    for name, metrics in results.items():
+        print(f"  {name:<11} PR-AUC {metrics['pr_auc']:.3f}  ROC-AUC {metrics['roc_auc']:.3f}  "
+              f"Brier {metrics['brier']:.4f}  precision@5% {metrics['precision_at_top']:.3f}")
 
 
 def _run_build_dataset(args: argparse.Namespace) -> None:
@@ -134,6 +151,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_audit(args)
     elif args.command == "build-dataset":
         _run_build_dataset(args)
+    elif args.command == "train":
+        _run_train(args)
 
 
 if __name__ == "__main__":
