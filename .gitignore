@@ -8,3 +8,4 @@ __pycache__/
 .superpowers/
 mlruns/
 mlflow.db
+serving_bundle/

@@ -60,7 +60,33 @@ def _build_parser() -> argparse.ArgumentParser:
                       default=config.DATA_DIR / "processed" / "dataset.parquet")
     card.add_argument("--models", type=Path, default=config.DATA_DIR / "models")
     card.add_argument("--out", type=Path, default=Path("docs") / "model-card.md")
+
+    export = commands.add_parser("export-bundle", help="Package models for the API.")
+    export.add_argument("--raw", type=Path, default=config.DATA_DIR / "raw")
+    export.add_argument("--dataset", type=Path,
+                        default=config.DATA_DIR / "processed" / "dataset.parquet")
+    export.add_argument("--models", type=Path, default=config.DATA_DIR / "models")
+    export.add_argument("--out", type=Path, default=Path("serving_bundle"))
+    export.add_argument("--as-of", type=date.fromisoformat, required=True)
+
+    demo = commands.add_parser("demo-bundle", help="Build a synthetic bundle (tests, CI).")
+    demo.add_argument("--out", type=Path, default=Path("serving_bundle"))
     return parser
+
+
+def _run_export_bundle(args: argparse.Namespace) -> None:
+    from procurement_risk.serving.bundle import export_bundle, load_bundle
+
+    out = export_bundle(args.raw, args.dataset, args.models, args.out, args.as_of)
+    bundle = load_bundle(out)
+    size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
+    print(f"wrote {out}: {len(bundle.buyers):,} buyers, {size / 1e6:.1f} MB")
+
+
+def _run_demo_bundle(args: argparse.Namespace) -> None:
+    from procurement_risk.serving.bundle import make_demo_bundle
+
+    print(f"wrote {make_demo_bundle(args.out)}")
 
 
 def _run_model_card(args: argparse.Namespace) -> None:
@@ -179,6 +205,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_train(args)
     elif args.command == "model-card":
         _run_model_card(args)
+    elif args.command == "export-bundle":
+        _run_export_bundle(args)
+    elif args.command == "demo-bundle":
+        _run_demo_bundle(args)
 
 
 if __name__ == "__main__":

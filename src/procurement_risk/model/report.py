@@ -13,14 +13,11 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from sklearn.metrics import precision_recall_curve  # noqa: E402
 
+from procurement_risk.config import DISCLAIMER  # noqa: E402
 from procurement_risk.features.build import CATEGORICAL_FEATURES, NUMERIC_FEATURES  # noqa: E402
 from procurement_risk.model.explain import global_importance  # noqa: E402
 from procurement_risk.model.train import RiskModel  # noqa: E402
 
-DISCLAIMER = (
-    "Scores are statistical estimates for analysis, not allegations of wrongdoing. "
-    "They estimate the chance that a contract will be amended, nothing more."
-)
 MODEL_LABELS = {"base_rate": "Base rate", "buyer_rate": "Buyer history rate",
                 "logistic": "Logistic regression", "lightgbm": "LightGBM (calibrated)"}
 TARGET_LABELS = {"has_value_addition": "value addition", "has_time_extension": "time extension"}

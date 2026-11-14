@@ -97,3 +97,8 @@ SNAPSHOT_COLUMNS: tuple[str, ...] = (
 )
 
 DATA_DIR = Path("data")
+
+DISCLAIMER = (
+    "Scores are statistical estimates for analysis, not allegations of wrongdoing. "
+    "They estimate the chance that a contract will be amended, nothing more."
+)
