@@ -54,7 +54,31 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--target", choices=["has_value_addition", "has_time_extension"],
                        required=True)
     train.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+
+    card = commands.add_parser("model-card", help="Write the model card from saved metrics.")
+    card.add_argument("--dataset", type=Path,
+                      default=config.DATA_DIR / "processed" / "dataset.parquet")
+    card.add_argument("--models", type=Path, default=config.DATA_DIR / "models")
+    card.add_argument("--out", type=Path, default=Path("docs") / "model-card.md")
     return parser
+
+
+def _run_model_card(args: argparse.Namespace) -> None:
+    import json
+
+    from procurement_risk.model.report import write_model_card
+    from procurement_risk.model.train import dataset_summary
+
+    results = {
+        target: json.loads((args.models / target / "metrics.json").read_text(encoding="utf-8"))
+        for target in ("has_value_addition", "has_time_extension")
+        if (args.models / target / "metrics.json").exists()
+    }
+    if not results:
+        print(f"error: no metrics.json under {args.models}; run `train` first", file=sys.stderr)
+        raise SystemExit(2)
+    write_model_card(results, dataset_summary(args.dataset), args.out)
+    print(f"wrote {args.out}")
 
 
 def _run_train(args: argparse.Namespace) -> None:
@@ -153,6 +177,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_build_dataset(args)
     elif args.command == "train":
         _run_train(args)
+    elif args.command == "model-card":
+        _run_model_card(args)
 
 
 if __name__ == "__main__":

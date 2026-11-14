@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import joblib
@@ -131,5 +132,27 @@ def run_experiment(
                                   registered_model_name=f"amendment-risk-{target}")
         mlflow.log_artifact(str(model_path), artifact_path="calibrated")
 
-    run_experiment.last = (model, splits, scores)  # for reporting (Task 7)
+    (model_path.parent / "metrics.json").write_text(
+        json.dumps(results, indent=2), encoding="utf-8")
+    if figures_dir is not None:
+        from procurement_risk.model.report import write_figures
+
+        write_figures(scores, y_test.to_numpy(), model, splits.test, target, figures_dir)
     return results
+
+
+def dataset_summary(dataset_path: Path) -> dict:
+    """Summary of the training dataset for the model card."""
+    df = pd.read_parquet(dataset_path, columns=["signed_at", "has_value_addition",
+                                                 "has_time_extension"])
+    splits = temporal_split(df)
+    signed = pd.to_datetime(df["signed_at"])
+    return {
+        "n_rows": len(df),
+        "signed_from": signed.min().date().isoformat(),
+        "signed_to": signed.max().date().isoformat(),
+        "positive_rate": {t: float(df[t].astype(float).mean())
+                          for t in ("has_value_addition", "has_time_extension")},
+        "split_sizes": {"train": len(splits.train), "valid": len(splits.valid),
+                        "test": len(splits.test)},
+    }

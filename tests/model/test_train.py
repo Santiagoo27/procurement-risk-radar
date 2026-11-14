@@ -66,5 +66,23 @@ def test_run_experiment_logs_to_mlflow(synthetic, tmp_path):
     versions = client.search_model_versions("name='amendment-risk-has_value_addition'")
     assert len(versions) == 1
     assert (tmp_path / "models" / "has_value_addition" / "model.joblib").exists()
+    assert (tmp_path / "models" / "has_value_addition" / "metrics.json").exists()
+    assert len(list((tmp_path / "figures").glob("has_value_addition-*.png"))) == 3
     assert results["lightgbm"]["pr_auc"] == pytest.approx(
         next(r for r in runs if r.info.run_name == "lightgbm").data.metrics["test_pr_auc"])
+
+
+def test_model_card_cli_combines_targets(synthetic, tmp_path):
+    from procurement_risk import __main__ as cli
+
+    ds = tmp_path / "ds.parquet"
+    synthetic.to_parquet(ds)
+    uri = f"sqlite:///{(tmp_path / 'm.db').as_posix()}"
+    for target in ("has_value_addition", "has_time_extension"):
+        run_experiment(ds, target, tracking_uri=uri, models_dir=tmp_path / "models",
+                       params=FAST, figures_dir=None)
+    card = tmp_path / "card.md"
+    cli.main(["model-card", "--dataset", str(ds), "--models", str(tmp_path / "models"),
+              "--out", str(card)])
+    text = card.read_text(encoding="utf-8")
+    assert "### `has_value_addition`" in text and "### `has_time_extension`" in text
