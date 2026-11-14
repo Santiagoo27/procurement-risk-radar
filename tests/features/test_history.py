@@ -82,3 +82,30 @@ def test_open_contracts_never_become_events(make_raw):
         contract("later", "2026-11-01T00:00:00", "2027-01-01T00:00:00"),
     ])
     assert history(raw)["later"][0] == 0
+
+
+def test_end_before_signing_does_not_leak(make_raw):
+    # Bad source data: end date long before the signing date.
+    raw = make_raw(contracts=[
+        contract("EARLY", "2021-09-01T00:00:00", "2022-01-01T00:00:00"),
+        contract("SELF", "2022-06-01T00:00:00", "2021-01-01T00:00:00", added="9"),
+    ])
+    out = history(raw)
+    assert out["SELF"][0] == 0
+    assert out["EARLY"][0] == 0
+
+
+def test_late_amendment_delays_observability(make_raw):
+    # A ends 2021-01-01 (observable 2021-06-30) but its addition is recorded 2022-03-01.
+    raw = make_raw(
+        contracts=[
+            contract("A", "2020-06-01T00:00:00", "2021-01-01T00:00:00"),
+            contract("B", "2021-12-01T00:00:00", "2022-06-01T00:00:00"),
+            contract("C", "2022-04-01T00:00:00", "2022-06-01T00:00:00"),
+        ],
+        amendments=[{"identificador": "x", "id_contrato": "A", "tipo": "Adicion en el valor",
+                     "fecharegistro": "2022-03-01T00:00:00"}],
+    )
+    out = history(raw)
+    assert out["B"][0] == 0
+    assert out["C"][0] == 1

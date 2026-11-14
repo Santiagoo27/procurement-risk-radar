@@ -106,12 +106,16 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         "- Source: SECOP II open data (datos.gov.co), contracts signed "
         f"{summary['signed_from']} to {summary['signed_to']}; "
         f"{summary['n_rows']:,} closed contracts.",
-        "- Closed contract: current end date at least 180 days before 2026-11-14. Only closed "
-        "contracts are labelled.",
+        "- Closed contract: planned end date (planned start + planned duration, falling back "
+        f"to the current end date) at least {summary.get('grace_days', 180)} days before "
+        f"{summary.get('as_of', '2026-11-14')}. Only closed contracts are labelled. The current "
+        "end date is not used because extensions move it, which would drop extended contracts "
+        "from recent periods.",
         f"- `has_value_addition` ({rates['has_value_addition']:.1%} positive): an explicit "
         "'Adicion en el valor' amendment, or a generic amendment whose text describes a value "
         "addition (see [data audit](data-audit.md)).",
-        f"- `has_time_extension` ({rates['has_time_extension']:.1%} positive): added days > 0.",
+        f"- `has_time_extension` ({rates['has_time_extension']:.1%} positive): added days > 0 "
+        "or an 'Extension' amendment.",
         f"- Temporal split by signing date: train before 2023-01-01 ({sizes['train']:,}), "
         f"validation 2023-H1 ({sizes['valid']:,}), test 2023-07-01 to 2024-12-31 "
         f"({sizes['test']:,}).",
@@ -129,6 +133,10 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         "identifiers and supplier names.",
         "",
         "## Evaluation (test split)",
+        "",
+        "Ranking metrics (PR-AUC, ROC-AUC, precision and recall in the top 5%) use raw LightGBM "
+        "scores; Brier score and log loss use the calibrated probabilities. Ties at the top-5% "
+        "cutoff are broken at random with a fixed seed.",
         "",
     ]
     for target, results in all_results.items():
@@ -150,7 +158,9 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         "missed.",
         "- The size of each addition is not published by SECOP; the model predicts whether an "
         "addition happens, not how large it is.",
-        "- `estado_contrato` is not kept up to date, so closure is inferred from end dates.",
+        "- `estado_contrato` is not kept up to date, so closure is inferred from planned end "
+        "dates. Contracts signed in the most recent months are only included once their planned "
+        "end has passed, so the test period over-represents shorter contracts.",
         "- Colombia only; data lag of about two days behind the SECOP portal.",
         "- A high score reflects patterns of similar past contracts, not evidence about this one.",
         "",

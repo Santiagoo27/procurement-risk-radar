@@ -52,3 +52,21 @@ def test_extension_from_added_days(make_raw):
 def test_observable_at_is_end_plus_grace(make_raw):
     out = labels(make_raw(contracts=[contract("1", end="2022-01-01T00:00:00")]))
     assert out["1"][3] == datetime(2022, 6, 30)
+
+
+def test_closure_uses_planned_end_not_extended_end(make_raw):
+    raw = make_raw(
+        contracts=[
+            # planned: start 2025-01-01 + 30 days -> closed; extensions moved the end past as-of
+            contract("ext", end="2026-12-31T00:00:00", dias_adicionados="400",
+                     fecha_de_inicio_del_contrato="2025-01-01T00:00:00",
+                     proceso_de_compra="P1"),
+            # no planned duration -> falls back to the current end date (open)
+            contract("nodur", end="2026-10-01T00:00:00"),
+        ],
+        processes=[{"id_del_portafolio": "P1", "duracion": "30", "unidad_de_duracion": "Dias"}],
+    )
+    out = labels(raw)
+    assert out["ext"][0] is True
+    assert out["ext"][2] is True
+    assert out["nodur"][0] is False

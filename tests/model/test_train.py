@@ -86,3 +86,36 @@ def test_model_card_cli_combines_targets(synthetic, tmp_path):
               "--out", str(card)])
     text = card.read_text(encoding="utf-8")
     assert "### `has_value_addition`" in text and "### `has_time_extension`" in text
+
+
+def test_lightgbm_ranking_metrics_use_raw_scores(synthetic, tmp_path):
+    from sklearn.metrics import average_precision_score
+
+    ds = tmp_path / "ds.parquet"
+    synthetic.to_parquet(ds)
+    uri = f"sqlite:///{(tmp_path / 'm.db').as_posix()}"
+    results = run_experiment(ds, "has_value_addition", tracking_uri=uri,
+                             models_dir=tmp_path / "models", params=FAST, figures_dir=None)
+    import joblib
+
+    model = joblib.load(tmp_path / "models" / "has_value_addition" / "model.joblib")
+    test = temporal_split(synthetic).test
+    expected = average_precision_score(test["has_value_addition"].astype(int),
+                                       model.predict_raw(test))
+    assert results["lightgbm"]["pr_auc"] == pytest.approx(expected)
+
+
+def test_registered_model_is_calibrated(synthetic, tmp_path):
+    import joblib
+    import mlflow
+
+    ds = tmp_path / "ds.parquet"
+    synthetic.to_parquet(ds)
+    uri = f"sqlite:///{(tmp_path / 'm.db').as_posix()}"
+    run_experiment(ds, "has_value_addition", tracking_uri=uri, models_dir=tmp_path / "models",
+                   params=FAST, figures_dir=None)
+    mlflow.set_tracking_uri(uri)
+    served = mlflow.pyfunc.load_model("models:/amendment-risk-has_value_addition/1")
+    model = joblib.load(tmp_path / "models" / "has_value_addition" / "model.joblib")
+    test = temporal_split(synthetic).test.head(50)
+    assert np.allclose(np.asarray(served.predict(test)).ravel(), model.predict_proba(test))

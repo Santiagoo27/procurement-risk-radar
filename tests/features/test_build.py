@@ -53,7 +53,8 @@ def test_rows_without_process_are_kept_and_counted(make_raw):
 
 def test_only_closed_contracts_in_dataset(make_raw):
     raw = make_raw(contracts=[contract("1"),
-                              contract("2", fecha_de_fin_del_contrato="2026-10-01T00:00:00")],
+                              contract("2", fecha_de_firma="2026-08-01T00:00:00",
+                                       fecha_de_fin_del_contrato="2026-10-01T00:00:00")],
                    processes=[PROCESS])
     df, _ = assemble_dataset(raw, AS_OF)
     assert list(df["contract_id"]) == ["1"]

@@ -118,19 +118,26 @@ def run_experiment(
             mlflow.log_metrics({f"test_{k}": v for k, v in results[name].items()})
 
     model = train_lightgbm(splits, target, params)
-    scores["lightgbm"] = model.predict_proba(splits.test)
-    results["lightgbm"] = evaluate(y_test, scores["lightgbm"])
+    # Ranking metrics on raw scores (isotonic output is tied); probability metrics calibrated.
+    raw_test = model.predict_raw(splits.test)
+    scores["lightgbm"] = raw_test
+    results["lightgbm"] = evaluate(y_test, raw_test, y_prob=model.predict_proba(splits.test))
     model_path = Path(models_dir) / target / "model.joblib"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, model_path)
     with mlflow.start_run(run_name="lightgbm"):
+        from procurement_risk.model.serving import RiskModelPyfunc
+
         mlflow.log_params({"model": "lightgbm", "target": target, **split_sizes,
                            "best_iteration": model.booster.best_iteration,
                            **{k: v for k, v in {**DEFAULT_PARAMS, **(params or {})}.items()}})
         mlflow.log_metrics({f"test_{k}": v for k, v in results["lightgbm"].items()})
-        mlflow.lightgbm.log_model(model.booster, name="model",
-                                  registered_model_name=f"amendment-risk-{target}")
-        mlflow.log_artifact(str(model_path), artifact_path="calibrated")
+        mlflow.pyfunc.log_model(
+            name="model",
+            python_model=RiskModelPyfunc(),
+            artifacts={"risk_model": str(model_path)},
+            registered_model_name=f"amendment-risk-{target}",
+        )
 
     (model_path.parent / "metrics.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8")

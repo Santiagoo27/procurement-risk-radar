@@ -36,3 +36,12 @@ def test_figures_are_written(synthetic, tmp_path):
                                        "has_value_addition-calibration.png",
                                        "has_value_addition-importance.png"}
     assert all(p.stat().st_size > 1000 for p in paths)
+
+
+def test_model_card_describes_labels_as_implemented(tmp_path):
+    out = tmp_path / "card.md"
+    write_model_card(RESULTS, {**SUMMARY, "as_of": "2026-11-14", "grace_days": 180}, out)
+    text = out.read_text(encoding="utf-8")
+    assert "or an 'Extension' amendment" in text
+    assert "planned end date" in text
+    assert "ranking metrics" in text.lower()
