@@ -13,6 +13,8 @@ import duckdb
 
 from procurement_risk.audit.metrics import HIDDEN_TYPES, VALUE_ADDITION
 
+# Shared with serving.scoring so both derive the same values.
+SEGMENT_SQL = "nullif(regexp_extract({col}, '(\\d{{2}})', 1), '')"
 MAX_DURATION_DAYS = 3650  # longer planned durations are data-entry errors -> null
 
 _UNIT_DAYS = """
@@ -45,8 +47,7 @@ def build_canonical(con: duckdb.DuckDBPyConnection) -> None:
             c.modalidad_de_contratacion AS procurement_method,
             c.tipo_de_contrato AS contract_type,
             c.codigo_de_categoria_principal AS category_code,
-            nullif(regexp_extract(c.codigo_de_categoria_principal, '(\\d{{2}})', 1), '')
-                AS category_segment,
+            {SEGMENT_SQL.format(col="c.codigo_de_categoria_principal")} AS category_segment,
             c.origen_de_los_recursos AS funding_source,
             c.fecha_de_firma AS signed_at,
             c.fecha_de_inicio_del_contrato AS planned_start_at,
