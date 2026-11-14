@@ -1,0 +1,56 @@
+name: Nightly snapshot
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Re-download every contract (baseline)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --no-dev
+
+      - name: Ensure release exists
+        run: |
+          gh release view snapshots >/dev/null 2>&1 || gh release create snapshots \
+            --title "Snapshot archive" \
+            --notes "Daily change-logs of SECOP II contract values and end dates."
+
+      - name: Download watermark
+        run: |
+          mkdir -p data/snapshots
+          gh release download snapshots -p watermark.json -D data/snapshots || true
+
+      - name: Take snapshot
+        run: |
+          FULL=""
+          if [ "${{ inputs.full }}" = "true" ] || [ "$(date -u +%d)" = "01" ]; then FULL="--full"; fi
+          uv run python -m procurement_risk snapshot \
+            --watermark data/snapshots/watermark.json --out data/snapshots $FULL
+
+      - name: Upload to release
+        run: |
+          shopt -s nullglob
+          files=(data/snapshots/*.parquet)
+          if [ ${#files[@]} -gt 0 ]; then
+            gh release upload snapshots "${files[@]}" data/snapshots/watermark.json --clobber
+          fi

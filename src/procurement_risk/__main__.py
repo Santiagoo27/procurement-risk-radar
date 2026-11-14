@@ -11,6 +11,7 @@ from pathlib import Path
 from procurement_risk import config
 from procurement_risk.ingest import ingest_amendments, ingest_contracts, ingest_processes
 from procurement_risk.privacy import MissingSaltError, load_salt
+from procurement_risk.snapshot import Watermark, take_snapshot
 from procurement_risk.sources.socrata import SocrataClient
 
 
@@ -23,7 +24,27 @@ def _build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--from", dest="start", type=date.fromisoformat)
     ingest.add_argument("--to", dest="end", type=date.fromisoformat)
     ingest.add_argument("--out", type=Path, default=config.DATA_DIR / "raw")
+
+    snap = commands.add_parser("snapshot", help="Archive changed contract values and dates.")
+    snap.add_argument("--watermark", type=Path,
+                      default=config.DATA_DIR / "snapshots" / "watermark.json")
+    snap.add_argument("--out", type=Path, default=config.DATA_DIR / "snapshots")
+    snap.add_argument("--run-date", type=date.fromisoformat, default=None)
+    snap.add_argument("--full", action="store_true", help="Re-download every contract.")
     return parser
+
+
+def _run_snapshot(args: argparse.Namespace) -> None:
+    watermark = Watermark.load(args.watermark)
+    run_date = args.run_date or date.today()
+    path, new_watermark = take_snapshot(
+        SocrataClient(), args.out, watermark, run_date, full=args.full
+    )
+    if path is None:
+        print("no changes since last snapshot")
+        return
+    new_watermark.save(args.watermark)
+    print(f"wrote {path}; watermark {new_watermark.last_updated}")
 
 
 def _run_ingest(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -52,6 +73,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.command == "ingest":
         _run_ingest(args, parser)
+    elif args.command == "snapshot":
+        _run_snapshot(args)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,16 @@ Privacy: only an allowlist of columns is ever stored. Personal data in the sourc
 (legal representatives, supervisors, bank accounts) is never written to disk, and
 suppliers who are natural persons are replaced by a salted hash.
 
+## Snapshot archive
+
+SECOP publishes *that* a contract received a value addition, but not *how much*. To be able
+to measure amendment size later, a nightly GitHub Actions job
+([`snapshot.yml`](.github/workflows/snapshot.yml)) records every contract whose
+`ultima_actualizacion` changed since the previous run: contract value, end date, added
+days and status. Files are attached to the
+[`snapshots` release](../../releases/tag/snapshots): `baseline-YYYY-MM-DD.parquet` (full
+download, also re-taken on the first day of each month) and `changes-YYYY-MM-DD.parquet`.
+
 ## Development
 
 ```bash
