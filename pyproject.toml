@@ -9,9 +9,8 @@ requires-python = ">=3.12"
 dependencies = [
     "duckdb>=2.0.0",
     "httpx>=0.28.1",
+    "joblib>=1.6.0",
     "lightgbm>=4.7.0",
-    "matplotlib>=3.11.2",
-    "mlflow>=3.18.0",
     "numpy>=2.5.4",
     "pandas>=3.1.1",
     "pyarrow>=26.0.1",
@@ -20,6 +19,16 @@ dependencies = [
 
 [project.scripts]
 procurement-risk = "procurement_risk.__main__:main"
+
+[project.optional-dependencies]
+train = [
+    "matplotlib>=3.11.2",
+    "mlflow>=3.18.0",
+]
+api = [
+    "fastapi>=0.163.0",
+    "uvicorn[standard]>=0.54.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]

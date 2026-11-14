@@ -111,7 +111,7 @@ download, also re-taken on the first day of each month) and `changes-YYYY-MM-DD-
 ## Development
 
 ```bash
-uv sync
+uv sync --all-extras
 uv run pytest
 uv run ruff check .
 ```
