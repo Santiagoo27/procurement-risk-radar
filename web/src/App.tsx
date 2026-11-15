@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Disclaimer } from "./components/Disclaimer";
+import Buyers from "./routes/Buyers";
 import Entity from "./routes/Entity";
 import Home from "./routes/Home";
 import Methodology from "./routes/Methodology";
@@ -18,6 +19,7 @@ export default function App() {
             Procurement Risk Radar
           </NavLink>
           <NavLink to="/" end className={navClass}>Map</NavLink>
+          <NavLink to="/buyers" className={navClass}>Buyers</NavLink>
           <NavLink to="/try" className={navClass}>Try it</NavLink>
           <NavLink to="/methodology" className={navClass}>Methodology</NavLink>
           <a className="rounded px-2 py-1 text-muted hover:text-ink"
@@ -28,6 +30,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/entity/:buyerId" element={<Entity />} />
+          <Route path="/buyers" element={<Buyers />} />
           <Route path="/try" element={<Try />} />
           <Route path="/methodology" element={<Methodology />} />
           <Route path="*" element={<NotFound />} />
