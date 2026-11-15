@@ -79,7 +79,30 @@ def _build_parser() -> argparse.ArgumentParser:
                      default=Path("web/public/geo/colombia-municipalities.topo.json"))
     web.add_argument("--out", type=Path, default=Path("web/public/data"))
     web.add_argument("--as-of", type=date.fromisoformat, required=True)
+
+    quality = commands.add_parser("check-quality", help="Check a fresh download before use.")
+    quality.add_argument("--raw", type=Path, nargs="+", default=[config.DATA_DIR / "raw"])
+    quality.add_argument("--previous", type=Path, default=None,
+                         help="quality.json from the last successful run (row counts).")
+    quality.add_argument("--out", type=Path, default=config.DATA_DIR / "quality.json")
+    quality.add_argument("--run-date", type=date.fromisoformat, default=None)
     return parser
+
+
+def _run_check_quality(args: argparse.Namespace) -> None:
+    import json
+
+    from procurement_risk.ops.quality import check_raw
+
+    previous = None
+    if args.previous and args.previous.exists():
+        previous = json.loads(args.previous.read_text(encoding="utf-8")).get("counts")
+    report = check_raw(args.raw, previous, args.run_date or date.today())
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+    print(report.to_markdown())
+    if not report.passed:
+        raise SystemExit(4)
 
 
 def _run_export_web_data(args: argparse.Namespace) -> None:
@@ -231,6 +254,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_demo_bundle(args)
     elif args.command == "export-web-data":
         _run_export_web_data(args)
+    elif args.command == "check-quality":
+        _run_check_quality(args)
 
 
 if __name__ == "__main__":
