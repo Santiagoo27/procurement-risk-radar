@@ -8,6 +8,8 @@ export interface Summary {
   min_n: number;
   n_closed: number;
   n_open_scored: number;
+  predicted_layer_available: boolean;
+  min_open_for_predicted_layer: number;
   national: {
     value_addition_rate: number | null;
     extension_rate: number | null;

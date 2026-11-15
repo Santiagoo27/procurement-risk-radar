@@ -36,6 +36,8 @@ from procurement_risk.web.geo import coverage, load_regions, match_regions
 
 TARGETS = {"has_value_addition": "value_addition", "has_time_extension": "time_extension"}
 TOP_CONTRACTS = 10
+# Below this many scored open contracts the predicted layer is not representative.
+MIN_OPEN_FOR_PREDICTED_LAYER = 10_000
 
 
 def slugify(name: str | None) -> str:
@@ -220,6 +222,8 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
         "min_n": min_n,
         "n_closed": int(len(observed)),
         "n_open_scored": int(len(open_rows)),
+        "predicted_layer_available": bool(len(open_rows) >= MIN_OPEN_FOR_PREDICTED_LAYER),
+        "min_open_for_predicted_layer": MIN_OPEN_FOR_PREDICTED_LAYER,
         "national": {
             "value_addition_rate": _clean(observed["has_value_addition"].mean()),
             "extension_rate": _clean(observed["has_time_extension"].mean()),

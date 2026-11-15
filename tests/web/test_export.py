@@ -157,3 +157,10 @@ def test_floats_are_rounded(setup):
     text = (out / "departments.json").read_text(encoding="utf-8")
     import re
     assert not re.search(r"\d\.\d{5,}", text)
+
+
+def test_predicted_layer_flagged_unavailable_when_too_few_open_contracts(setup):
+    _, _, out, _ = setup
+    summary = read(out / "summary.json")
+    assert summary["predicted_layer_available"] is False
+    assert summary["min_open_for_predicted_layer"] == 10_000
