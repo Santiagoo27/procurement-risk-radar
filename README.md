@@ -10,11 +10,17 @@ countries can be added.
 > wrongdoing. This project reports amendment risk signals; it does not detect or claim
 > corruption or fraud.
 
-**Status:** Phase 2 complete. A prediction API serves the calibrated model; see the
-[API reference](docs/api.md), the [model card](docs/model-card.md) and the
-[data audit](docs/data-audit.md). Next: Phase 3, a web demo with an interactive map.
+**Live demo:** [procurement-risk-radar.vercel.app](https://procurement-risk-radar.vercel.app). It
+has an interactive map, a page for each buyer, and a "try it" form backed by the
+[prediction API](https://procurement-risk-radar-9p25.onrender.com/docs). The API runs on a free
+instance that sleeps when idle, so the first request can take about a minute.
 
-**Live API:** [https://procurement-risk-radar-9p25.onrender.com/docs](https://procurement-risk-radar-9p25.onrender.com/docs), the interactive reference, hosted on Render. The free instance sleeps after 15 idle minutes, so the first request can take about a minute.
+[![Map of value additions by municipality in Antioquia](docs/figures/web-map.png)](https://procurement-risk-radar.vercel.app)
+
+**Status:** Phases 0–3 are complete: data audit, model, API and web demo. See the
+[model card](docs/model-card.md), [API reference](docs/api.md), [data audit](docs/data-audit.md)
+and [geographic sources](docs/geo-sources.md). Next is Phase 4: scheduled scoring,
+retraining and monitoring.
 
 ## Results
 
@@ -146,6 +152,24 @@ uv run ruff check .
 cd web && npm ci && npm test -- --run && npm run dev   # web demo on http://localhost:5173
 ```
 
+## Web demo
+
+`web/` is a React + TypeScript (Vite) app hosted on Vercel. It reads static JSON written by
+`python -m procurement_risk export-web-data`, which uses the same features and models as the
+API, and calls the live API for the "try it" form.
+
+- The JSON contains no supplier names and no free text from contracts.
+- Contracts with a natural-person supplier are listed without their identifier or link.
+- Rates based on fewer than 30 contracts are hidden.
+
+On 2026-11-15 SECOP truncated its tender dataset (`p6dx-8zbt`). The predicted-risk layer
+stays switched off until at least 10,000 open contracts can be scored again.
+
 ## License
 
-Code: MIT, see [LICENSE](LICENSE).
+- Code: MIT, see [LICENSE](LICENSE).
+- Data: SECOP II open data from Colombia Compra Eficiente on
+  [datos.gov.co](https://www.datos.gov.co).
+- Map boundaries: [geoBoundaries](https://www.geoboundaries.org/) (CC BY 4.0) and DANE DIVIPOLA
+  ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)); see
+  [docs/geo-sources.md](docs/geo-sources.md).

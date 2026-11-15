@@ -9,3 +9,4 @@ __pycache__/
 mlruns/
 mlflow.db
 serving_bundle/
+.playwright-mcp/

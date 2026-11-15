@@ -11,5 +11,7 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: checksPass
     envVars:
+      # Browsers may call the API only from the demo site and local development.
+      # Non-browser clients (curl, Python) are unaffected by CORS.
       - key: ALLOWED_ORIGINS
-        value: "*"
+        value: "https://procurement-risk-radar.vercel.app,http://localhost:5173"
