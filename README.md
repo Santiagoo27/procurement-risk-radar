@@ -14,7 +14,7 @@ countries can be added.
 [API reference](docs/api.md), the [model card](docs/model-card.md) and the
 [data audit](docs/data-audit.md). Next: Phase 3, a web demo with an interactive map.
 
-**Live API:** _deployment pending_ on Render; `/docs` serves the interactive reference. The free instance sleeps after 15 idle minutes, so the first request can take about a minute.
+**Live API:** [https://procurement-risk-radar-9p25.onrender.com/docs](https://procurement-risk-radar-9p25.onrender.com/docs), the interactive reference, hosted on Render. The free instance sleeps after 15 idle minutes, so the first request can take about a minute.
 
 ## Results
 
@@ -101,7 +101,7 @@ every push, CI builds two images, starts each one and calls the API:
 Render deploys only after those checks pass.
 
 ```bash
-curl -s -X POST <api-url>/predict -H "Content-Type: application/json"   -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","award_value":40000000,"planned_duration_days":330}]}'
+curl -s -X POST https://procurement-risk-radar-9p25.onrender.com/predict -H "Content-Type: application/json"   -d '{"contracts":[{"buyer_id":"700221021","signed_at":"2025-01-15","award_value":40000000,"planned_duration_days":330}]}'
 ```
 
 See [docs/api.md](docs/api.md) for the fields, the response and the limitations.
