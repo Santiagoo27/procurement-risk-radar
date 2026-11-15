@@ -20,7 +20,7 @@ RUN base="https://github.com/${BUNDLE_REPO}/releases/download/${BUNDLE_TAG}" \
     && curl -fsSL -o serving_bundle.tar.gz "$base/serving_bundle.tar.gz" \
     && curl -fsSL -o serving_bundle.sha256 "$base/serving_bundle.sha256" \
     && sha256sum -c serving_bundle.sha256 \
-    && tar xzf serving_bundle.tar.gz \
+    && tar --no-same-owner -xzf serving_bundle.tar.gz \
     && rm serving_bundle.tar.gz serving_bundle.sha256
 
 RUN useradd --create-home --uid 1000 app && chown -R app /app
