@@ -45,3 +45,11 @@ def test_model_card_describes_labels_as_implemented(tmp_path):
     assert "or an 'Extension' amendment" in text
     assert "planned end date" in text
     assert "ranking metrics" in text.lower()
+
+
+def test_model_card_uses_split_dates_from_summary(tmp_path):
+    out = tmp_path / "card.md"
+    write_model_card(RESULTS, {**SUMMARY, "split_dates": ["2023-11-14", "2024-05-14",
+                                                          "2025-11-14"]}, out)
+    text = out.read_text(encoding="utf-8")
+    assert "train before 2023-11-14" in text and "2024-05-14 to 2025-11-14" in text

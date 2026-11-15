@@ -86,6 +86,7 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
                      out_path: Path) -> None:
     rates = summary["positive_rate"]
     sizes = summary["split_sizes"]
+    dates = summary.get("split_dates", ["2023-01-01", "2023-07-01", "2025-01-01"])
     lines = [
         "# Model card: amendment risk at signing time",
         "",
@@ -113,9 +114,9 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         "addition (see [data audit](data-audit.md)).",
         f"- `has_time_extension` ({rates['has_time_extension']:.1%} positive): added days > 0 "
         "or an 'Extension' amendment.",
-        f"- Temporal split by signing date: train before 2023-01-01 ({sizes['train']:,}), "
-        f"validation 2023-H1 ({sizes['valid']:,}), test 2023-07-01 to 2024-12-31 "
-        f"({sizes['test']:,}).",
+        f"- Temporal split by signing date: train before {dates[0]} ({sizes['train']:,}), "
+        f"validation {dates[0]} to {dates[1]} ({sizes['valid']:,}), test {dates[1]} to "
+        f"{dates[2]} ({sizes['test']:,}).",
         "",
         "## Features",
         "",
