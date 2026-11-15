@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { RiskBadge } from "../components/RiskBadge";
 import { Signals } from "../components/Signals";
 import {
-  loadEntities, loadEntityShard, loadSummary,
+  loadDepartments, loadEntities, loadEntityShard, loadMunicipalities, loadSummary,
   type Entity as EntityT, type OpenContract, type Summary,
 } from "../lib/data";
 import { cop, count, days, isoDate, pct } from "../lib/format";
@@ -12,6 +12,7 @@ interface Loaded {
   summary: Summary;
   entity: EntityT | null;
   contracts: OpenContract[];
+  location: string | null;
 }
 
 export default function Entity() {
@@ -21,16 +22,21 @@ export default function Entity() {
 
   useEffect(() => {
     let cancelled = false;
+    setData(null);
+    setError(null);
     (async () => {
-      const [summary, entities] = await Promise.all([loadSummary(), loadEntities()]);
+      const [summary, entities, departments, municipalities] = await Promise.all([
+        loadSummary(), loadEntities(), loadDepartments(), loadMunicipalities()]);
       const entity = entities.find((e) => e.buyer_id === buyerId) ?? null;
       let contracts: OpenContract[] = [];
       if (entity && entity.n_open > 0) {
-        const shard = await loadEntityShard(entity.dpto_slug).catch(() => ({}));
-        contracts = (shard as Record<string, { top_open: OpenContract[] }>)[buyerId]?.top_open
-          ?? [];
+        const shard = await loadEntityShard(entity.dpto_slug);
+        contracts = shard[buyerId]?.top_open ?? [];
       }
-      if (!cancelled) setData({ summary, entity, contracts });
+      const dpto = departments.find((d) => d.code === entity?.dpto_code)?.name;
+      const mpio = municipalities.find((m) => m.code === entity?.mpio_code)?.name;
+      const location = [mpio, dpto].filter(Boolean).join(", ") || null;
+      if (!cancelled) setData({ summary, entity, contracts, location });
     })().catch((e: Error) => !cancelled && setError(e.message));
     return () => { cancelled = true; };
   }, [buyerId]);
@@ -38,7 +44,7 @@ export default function Entity() {
   if (error) return <p className="text-red-700">{error}</p>;
   if (!data) return <p className="text-muted">Loading…</p>;
 
-  const { summary, entity, contracts } = data;
+  const { summary, entity, contracts, location } = data;
   if (!entity) {
     return (
       <div className="space-y-3">
@@ -54,7 +60,9 @@ export default function Entity() {
       <div className="space-y-1">
         <Link className="text-sm text-accent hover:underline" to="/">← Map</Link>
         <h1 className="text-2xl font-semibold">{entity.name ?? entity.buyer_id}</h1>
-        <p className="text-sm text-muted">SECOP entity code {entity.buyer_id}</p>
+        <p className="text-sm text-muted">
+          {location && <>{location} · </>}SECOP entity code {entity.buyer_id}
+        </p>
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2">
@@ -74,12 +82,13 @@ export default function Entity() {
         </div>
         {contracts.length === 0 ? (
           <p className="rounded-md bg-white p-4 text-sm text-muted">
-            No open contracts of this buyer could be scored. The model needs the tender data of
-            each contract, which SECOP has not published for recent contracts yet.
+            No open contract of this buyer with a recorded value could be listed. Recent
+            contracts also need tender data that SECOP has not republished yet.
           </p>
         ) : (
           <ul className="space-y-3">
-            {contracts.map((c) => <ContractCard key={c.id_contrato} contract={c} />)}
+            {contracts.map((c, i) => <ContractCard key={c.id_contrato ?? `person-${i}`}
+              contract={c} />)}
           </ul>
         )}
       </section>
@@ -113,7 +122,11 @@ function ContractCard({ contract: c }: { contract: OpenContract }) {
   return (
     <li className="rounded-lg border border-line bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        {c.url ? (
+        {c.id_contrato === null ? (
+          <span className="font-medium text-muted">
+            Contract with a natural person — identifier withheld
+          </span>
+        ) : c.url ? (
           <a className="font-medium text-accent hover:underline" href={c.url} target="_blank"
             rel="noreferrer">{c.id_contrato}</a>
         ) : <span className="font-medium">{c.id_contrato}</span>}

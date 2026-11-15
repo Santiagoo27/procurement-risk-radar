@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Topology } from "topojson-specification";
 import { Legend } from "../components/Legend";
 import { LayerPicker } from "../components/LayerPicker";
@@ -25,6 +25,10 @@ export default function Home() {
   const [layerId, setLayerId] = useState(LAYERS[0].id);
   const [department, setDepartment] = useState<string | null>(null);
   const [municipality, setMunicipality] = useState<string | null>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+
+  // After drilling into a department the focused region unmounts; move focus somewhere useful.
+  useEffect(() => { if (department) backRef.current?.focus(); }, [department]);
 
   useEffect(() => {
     Promise.all([loadSummary(), loadDepartments(), loadMunicipalities(), loadEntities(),
@@ -111,7 +115,7 @@ export default function Home() {
               {department ? "municipalities" : "departments"}
             </p>
             {department && (
-              <button type="button" className="text-sm text-accent hover:underline"
+              <button ref={backRef} type="button" className="text-sm text-accent hover:underline"
                 onClick={() => { setDepartment(null); setMunicipality(null); }}>
                 ← Back to Colombia
               </button>

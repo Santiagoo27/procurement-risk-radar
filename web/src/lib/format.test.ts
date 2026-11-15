@@ -13,6 +13,7 @@ describe("format", () => {
     expect(cop(1_250_000_000)).toBe("$1.25B COP");
     expect(cop(950_000)).toBe("$950K COP");
     expect(cop(null)).toBe("—");
+    expect(cop(0)).toBe("value not reported");
   });
   it("formats days and dates", () => {
     expect(days(330)).toBe("330 days");

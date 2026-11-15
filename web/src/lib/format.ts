@@ -5,6 +5,7 @@ export function pct(x: number | null | undefined, digits = 1): string {
 
 export function cop(x: number | null | undefined): string {
   if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  if (x === 0) return "value not reported";
   const units: [number, string][] = [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
   for (const [size, suffix] of units) {
     if (Math.abs(x) >= size) {

@@ -22,7 +22,9 @@ export function RiskBadge({ label, score }: { label: string; score: TargetScore 
       <div className="text-xs opacity-80">{label}</div>
       <div className="text-lg font-semibold tabular-nums">{pct(score.probability)}</div>
       <div className="text-xs opacity-80">
-        higher than {Math.round(score.percentile)}% of recent contracts
+        {score.percentile >= 99
+          ? "in the top 1% of recent contracts"
+          : `higher than ${Math.round(score.percentile)}% of recent contracts`}
       </div>
     </div>
   );

@@ -26,10 +26,18 @@ const shard: EntityShard = {
       { feature: "log_tender_budget", label: "Tender budget (not provided)", provided: false,
         contribution: 0.1 }] },
     time_extension: { probability: 0.21, percentile: 80, top_signals: [] },
+  }, {
+    id_contrato: null, url: null, supplier_is_natural_person: true, signed_at: "2024-12-02",
+    contract_type: "Prestación de servicios", procurement_method: "Contratación directa",
+    award_value: 9_000_000, planned_duration_days: 200,
+    value_addition: { probability: 0.3, percentile: 80, top_signals: [] },
+    time_extension: { probability: 0.1, percentile: 50, top_signals: [] },
   }] },
 };
 
 vi.mock("../lib/data", () => ({
+  loadDepartments: () => Promise.resolve([{ code: "05", name: "Antioquia" }]),
+  loadMunicipalities: () => Promise.resolve([{ code: "05001", name: "Medellín" }]),
   loadSummary: () => Promise.resolve(summary),
   loadEntities: () => Promise.resolve(entities),
   loadEntityShard: () => Promise.resolve(shard),
@@ -55,6 +63,8 @@ describe("Entity page", () => {
     expect(link).toHaveAttribute("href", "https://community.secop.gov.co/x");
     expect(screen.getByText("42.0%")).toBeInTheDocument();
     expect(screen.getByText(/Tender budget \(not provided\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Medellín, Antioquia/)).toBeInTheDocument();
+    expect(screen.getByText(/natural person — identifier withheld/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Try a similar contract/ }))
       .toHaveAttribute("href", "/try?buyer=E1");
   });

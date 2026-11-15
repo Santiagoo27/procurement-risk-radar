@@ -68,3 +68,27 @@ describe("Try page", () => {
     expect(screen.getByText(/not allegations of wrongdoing/)).toBeInTheDocument();
   });
 });
+
+
+describe("Try page API validation errors", () => {
+  it("shows buyer and unmapped field errors instead of nothing", async () => {
+    const detail = [
+      { loc: ["body", "contracts", 0, "buyer_id"], msg: "bad buyer", type: "x" },
+      { loc: ["body", "contracts", 0], msg: "model-level problem", type: "x" },
+    ];
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url.endsWith("/health")
+      ? json({ status: "ok" }) : json({ detail }, 422))));
+    renderTry();
+    fireEvent.click(await screen.findByRole("button", { name: /Estimate risk/ }));
+    expect(await screen.findByText("bad buyer")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/model-level problem/);
+  });
+
+  it("offers a retry after a failed prediction", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => url.endsWith("/health")
+      ? Promise.resolve(json({ status: "ok" })) : Promise.resolve(json({}, 503))));
+    renderTry();
+    fireEvent.click(await screen.findByRole("button", { name: /Estimate risk/ }));
+    expect(await screen.findByRole("button", { name: /Try again/ })).toBeInTheDocument();
+  });
+});

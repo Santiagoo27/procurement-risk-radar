@@ -25,14 +25,12 @@ interface Form {
   planned_duration_days: string;
   n_bidders: string;
   supplier_is_natural_person: string;
-  extendable_clause: string;
 }
 
 const EMPTY: Form = {
   signed_at: new Date().toISOString().slice(0, 10), procurement_method: "Contratación directa",
   contract_type: "Prestación de servicios", award_value: "40000000", tender_budget: "",
   planned_duration_days: "330", n_bidders: "", supplier_is_natural_person: "yes",
-  extendable_clause: "",
 };
 
 function validate(form: Form): Record<string, string> {
@@ -74,7 +72,6 @@ function toInput(buyerId: string, form: Form): ContractInput {
     planned_duration_days: num(form.planned_duration_days),
     n_bidders: num(form.n_bidders),
     supplier_is_natural_person: bool(form.supplier_is_natural_person),
-    extendable_clause: bool(form.extendable_clause),
   };
 }
 
@@ -124,7 +121,19 @@ export default function Try() {
     try {
       setResult(await predict(toInput(buyer.buyer_id, form)));
     } catch (error) {
-      if (error instanceof ApiValidation) setErrors(error.fields);
+      if (error instanceof ApiValidation) {
+        const shown = new Set(["signed_at", "planned_duration_days", "procurement_method",
+          "contract_type", "award_value", "tender_budget", "n_bidders"]);
+        const fields: Record<string, string> = {};
+        const other: string[] = [];
+        for (const [key, msg] of Object.entries(error.fields)) {
+          if (key === "buyer_id") fields.buyer = msg;
+          else if (shown.has(key)) fields[key] = msg;
+          else other.push(msg);
+        }
+        setErrors(fields);
+        if (other.length) setFailure(`The model rejected the request: ${other.join("; ")}`);
+      }
       else if (error instanceof UnknownBuyer) setErrors({ buyer: error.message });
       else setFailure((error as Error).message);
     } finally {
@@ -232,7 +241,14 @@ export default function Try() {
             className="rounded-md bg-accent px-4 py-2 font-medium text-white disabled:opacity-50">
             {busy ? "Scoring…" : "Estimate risk"}
           </button>
-          {failure && <p role="alert" className="text-sm text-red-700">{failure}</p>}
+          {failure && (
+            <div role="alert" className="flex items-center justify-between gap-3 text-sm text-red-700">
+              <span>{failure}</span>
+              <button type="submit" className="shrink-0 rounded border border-red-300 px-2 py-1">
+                Try again
+              </button>
+            </div>
+          )}
         </form>
       </section>
 

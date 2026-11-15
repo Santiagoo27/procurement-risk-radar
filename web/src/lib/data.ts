@@ -54,8 +54,10 @@ export interface TargetScore {
 }
 
 export interface OpenContract {
-  id_contrato: string;
+  /** Null for contracts with a natural-person supplier (identifier withheld). */
+  id_contrato: string | null;
   url: string | null;
+  supplier_is_natural_person?: boolean;
   signed_at: string | null;
   contract_type: string | null;
   procurement_method: string | null;

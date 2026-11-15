@@ -39,6 +39,7 @@ def contract(cid, entity, city, signed, end, added="0", **kw):
             "tipo_de_contrato": "Obra", "modalidad_de_contratacion": "Licitación pública",
             "proveedor_adjudicado": "SECRETO SAS", "documento_proveedor": "900999999",
             "tipodocproveedor": "NIT", "objeto_del_contrato": "TEXTO PRIVADO JUAN PEREZ",
+            "supplier_is_natural_person": False,
             "urlproceso": "{'url': 'https://community.secop.gov.co/x?id=" + cid + "'}", **kw}
 
 
@@ -59,8 +60,19 @@ def setup(make_raw, tmp_path):
     # An open contract whose procurement process is missing must not be scored.
     contracts.append(contract("NOPROC", "E1", "Medellín", "2026-06-01T00:00:00",
                               "2027-06-01T00:00:00", proceso_de_compra="MISSING"))
+    # A zero-value open contract and one with a natural-person supplier.
+    contracts.append(contract("ZERO", "E1", "Medellín", "2026-06-01T00:00:00",
+                              "2027-06-01T00:00:00", proceso_de_compra="PZ"))
+    contracts.append(contract("PERSON", "E1", "Medellín", "2026-06-01T00:00:00",
+                              "2027-06-01T00:00:00", proceso_de_compra="PP",
+                              tipodocproveedor="Cédula de Ciudadanía",
+                              documento_proveedor="1234567", supplier_is_natural_person=True))
     processes = [{"id_del_portafolio": f"P{i}", "valor_total_adjudicacion": "5000000",
                   "precio_base": "6000000", "proveedores_unicos_con": "2"} for i in range(3)]
+    processes.append({"id_del_portafolio": "PZ", "valor_total_adjudicacion": "0",
+                      "precio_base": "0"})
+    processes.append({"id_del_portafolio": "PP", "valor_total_adjudicacion": "9000000",
+                      "precio_base": "9000000"})
     raw = make_raw(contracts=contracts, processes=processes)
     bundle = make_demo_bundle(tmp_path / "bundle")
     out = tmp_path / "web"
@@ -95,7 +107,7 @@ def test_open_contracts_scored_with_shared_features(setup):
     bundle = load_bundle(bundle_dir)
     shard = read(out / "entities" / "antioquia.json")
     top = shard["E1"]["top_open"]
-    assert {c["id_contrato"] for c in top} == {"O0", "O1", "O2"}
+    assert {c["id_contrato"] for c in top if c["id_contrato"]} == {"O0", "O1", "O2"}
 
     con = open_audit_db(raw)
     build_canonical(con)
@@ -135,7 +147,8 @@ def test_web_data_has_no_private_fields(setup):
 def test_urlproceso_unwrapped(setup):
     _, _, out, _ = setup
     top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]
-    assert top[0]["url"].startswith("https://community.secop.gov.co/x?id=O")
+    company = [c for c in top if c["id_contrato"]]
+    assert company[0]["url"].startswith("https://community.secop.gov.co/x?id=O")
 
 
 def test_open_audit_db_accepts_several_roots(make_raw, tmp_path):
@@ -147,7 +160,7 @@ def test_open_audit_db_accepts_several_roots(make_raw, tmp_path):
 
 def test_open_contracts_without_process_are_not_scored(setup):
     _, _, out, report = setup
-    assert report["n_open_scored"] == 3
+    assert report["n_open_scored"] == 5
     top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]
     assert "NOPROC" not in {c["id_contrato"] for c in top}
 
@@ -164,3 +177,41 @@ def test_predicted_layer_flagged_unavailable_when_too_few_open_contracts(setup):
     summary = read(out / "summary.json")
     assert summary["predicted_layer_available"] is False
     assert summary["min_open_for_predicted_layer"] == 10_000
+
+
+def test_zero_value_contracts_are_not_listed(setup):
+    _, _, out, _ = setup
+    top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]
+    assert all(c["award_value"] for c in top)
+    assert "ZERO" not in {c["id_contrato"] for c in top}
+
+
+def test_natural_person_contracts_have_no_identifier(setup):
+    _, _, out, _ = setup
+    top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]
+    persons = [c for c in top if c["supplier_is_natural_person"]]
+    assert len(persons) == 1
+    assert persons[0]["id_contrato"] is None and persons[0]["url"] is None
+    assert "PERSON" not in (out / "entities" / "antioquia.json").read_text(encoding="utf-8")
+
+
+def test_refuses_to_delete_an_unrelated_directory(make_raw, tmp_path):
+    raw = make_raw(contracts=[contract("X", "E1", "Medellín", "2022-03-01T00:00:00",
+                                       "2022-09-01T00:00:00")])
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (victim / "precious.txt").write_text("keep me", encoding="utf-8")
+    bundle = make_demo_bundle(tmp_path / "bundle")
+    with pytest.raises(ValueError, match="not a web data directory"):
+        export_web_data([raw], bundle, topo(tmp_path / "t.json"), victim, AS_OF)
+    assert (victim / "precious.txt").exists()
+
+
+def test_export_percentile_matches_api(setup):
+    from procurement_risk.serving.scoring import _percentile
+
+    _, bundle_dir, out, _ = setup
+    quantiles = load_bundle(bundle_dir).metadata["score_quantiles"]["has_value_addition"]
+    for c in read(out / "entities" / "antioquia.json")["E1"]["top_open"]:
+        p = c["value_addition"]["probability"]
+        assert c["value_addition"]["percentile"] == _percentile(quantiles, p)

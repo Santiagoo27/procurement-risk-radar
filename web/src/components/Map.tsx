@@ -70,9 +70,10 @@ export function ColombiaMap(props: Props) {
               fill={colorFor(code)}
               stroke={isSelected ? "#1f2933" : "#ffffff"}
               strokeWidth={isSelected ? 2 : 0.6}
-              className="cursor-pointer outline-none transition-opacity hover:opacity-80 focus:opacity-80"
+              className="cursor-pointer outline-none transition-opacity hover:opacity-80 focus-visible:stroke-[#1f2933] focus-visible:[stroke-width:3]"
               tabIndex={0}
               role="button"
+              aria-pressed={isSelected}
               aria-label={`${nameOf(f)}: ${pct(valueFor(code))}`}
               onClick={() => onSelect(code, level)}
               onKeyDown={(e) => {

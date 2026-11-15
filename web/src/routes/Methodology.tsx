@@ -81,7 +81,9 @@ export default function Methodology() {
         <p>
           Suppliers who are natural persons are replaced by an anonymous code before any
           processing. This site shows no supplier names or free text from contracts, and it
-          does not rank suppliers.
+          does not rank suppliers. Contracts with a natural-person supplier are listed without
+          their identifier or SECOP link, because the SECOP page names the person. Contracts
+          with no recorded value are scored but not listed.
         </p>
       </Section>
 

@@ -32,6 +32,7 @@ from procurement_risk.features.labels import build_labels
 from procurement_risk.model.explain import top_signals
 from procurement_risk.serving.bundle import load_bundle
 from procurement_risk.serving.labels import FEATURE_LABELS
+from procurement_risk.serving.scoring import _percentile
 from procurement_risk.web.geo import coverage, load_regions, match_regions
 
 TARGETS = {"has_value_addition": "value_addition", "has_time_extension": "time_extension"}
@@ -160,6 +161,10 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
 
     out_dir = Path(out_dir)
     if out_dir.exists():
+        # Only ever replace a previous export, never an arbitrary directory.
+        if any(out_dir.iterdir()) and not (out_dir / "summary.json").exists():
+            raise ValueError(f"{out_dir} is not a web data directory (no summary.json); "
+                             "refusing to delete it")
         shutil.rmtree(out_dir)
     sizes: dict[str, int] = {}
     observed = df[df["observed"]]
@@ -185,7 +190,10 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
                 "predicted_extension"]
     sizes["entities.json"] = _write(out_dir / "entities.json", _records(ent[ent_cols]))
 
-    top = (open_rows.assign(p=df.loc[open_rows.index, "p_value_addition"])
+    # Contracts with no recorded value (comodatos, zero-value agreements) cannot receive a
+    # meaningful "value addition", so they are scored for the aggregates but never listed.
+    listable = open_rows[open_rows["award_value"].fillna(0) > 0]
+    top = (listable.assign(p=df.loc[listable.index, "p_value_addition"])
            .sort_values("p", ascending=False).groupby("buyer_id").head(TOP_CONTRACTS))
     shards: dict[str, dict] = {}
     if len(top):
@@ -193,9 +201,14 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
         quantiles = bundle.metadata["score_quantiles"]
         slug_of = ent.set_index("buyer_id")["dpto_slug"]
         for i, (_, row) in enumerate(top.iterrows()):
+            # A natural-person supplier is named on the SECOP page, so those contracts are
+            # listed without identifier or link (spec 5.4).
+            flag = row["supplier_is_natural_person"]
+            person = bool(pd.isna(flag) or flag)  # unknown counts as a person (fail-safe)
             item = {
-                "id_contrato": row["contract_id"],
-                "url": _unwrap_url(row["urlproceso"]),
+                "id_contrato": None if person else row["contract_id"],
+                "url": None if person else _unwrap_url(row["urlproceso"]),
+                "supplier_is_natural_person": person,
                 "signed_at": _clean(pd.Timestamp(row["signed_at"])),
                 "contract_type": _clean(row["contract_type"]),
                 "procurement_method": _clean(row["procurement_method"]),
@@ -204,8 +217,7 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
             }
             for target, key in TARGETS.items():
                 p = float(df.loc[row.name, f"p_{key}"])
-                pct = float(np.clip(np.searchsorted(quantiles[target], p, side="right") - 1,
-                                    0, 100))
+                pct = _percentile(quantiles[target], p)
                 item[key] = {"probability": p, "percentile": pct, "top_signals": [
                     {"feature": f, "label": FEATURE_LABELS[f] + (
                         "" if not pd.isna(row[f]) else " (not provided)"),

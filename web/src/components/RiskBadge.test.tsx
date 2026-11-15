@@ -16,3 +16,13 @@ describe("RiskBadge", () => {
     expect(band(20)).toBe("typical");
   });
 });
+
+
+describe("RiskBadge top percentile", () => {
+  it("never claims to be higher than 100% of contracts", () => {
+    render(<RiskBadge label="Value addition" score={{ probability: 0.93, percentile: 100,
+      top_signals: [] }} />);
+    expect(screen.getByText(/in the top 1% of recent contracts/)).toBeInTheDocument();
+    expect(screen.queryByText(/higher than 100%/)).not.toBeInTheDocument();
+  });
+});
