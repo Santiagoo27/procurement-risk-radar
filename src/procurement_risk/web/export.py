@@ -6,7 +6,8 @@ Writes, under `out_dir`:
 
 Observed rates use closed contracts signed in [observed_from, observed_to). The predicted
 layer averages calibrated probabilities over open contracts signed in the two years
-before `as_of`, scored with the serving bundle's models and the training feature SQL.
+before `as_of` whose procurement process is available, scored with the serving bundle's
+models and the training feature SQL.
 No supplier fields or free text are ever written.
 """
 
@@ -59,7 +60,7 @@ def _unwrap_url(value) -> str | None:
 
 def _clean(value):
     if isinstance(value, (np.floating, float)):
-        return None if np.isnan(value) else float(value)
+        return None if np.isnan(value) else round(float(value), 4)
     if isinstance(value, (np.integer,)):
         return int(value)
     if isinstance(value, (pd.Timestamp,)):
@@ -69,9 +70,20 @@ def _clean(value):
     return value
 
 
+def _round_floats(node):
+    if isinstance(node, float):
+        return round(node, 4)
+    if isinstance(node, dict):
+        return {k: _round_floats(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_round_floats(v) for v in node]
+    return node
+
+
 def _write(path: Path, data) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=_clean)
+    text = json.dumps(_round_floats(data), ensure_ascii=False, separators=(",", ":"),
+                      default=_clean)
     path.write_text(text, encoding="utf-8")
     return len(text.encode("utf-8"))
 
@@ -123,8 +135,11 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
     df["observed"] = (df["is_closed"].astype(bool)
                       & (signed >= pd.Timestamp(observed_from))
                       & (signed < pd.Timestamp(observed_to)))
+    # Only open contracts with their procurement process are scored: without it the award
+    # value, budget and bidder features are missing and the estimate is unreliable.
     df["is_open"] = (~df["is_closed"].astype(bool)
-                     & (signed >= pd.Timestamp(as_of - timedelta(days=730))))
+                     & (signed >= pd.Timestamp(as_of - timedelta(days=730)))
+                     & df["process_found"].astype(bool))
     for col in ("has_value_addition", "has_time_extension"):
         df[col] = df[col].astype(float)
 

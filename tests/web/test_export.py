@@ -55,8 +55,13 @@ def setup(make_raw, tmp_path):
     # 3 open contracts for E1 (signed 2026, ending 2027).
     for i in range(3):
         contracts.append(contract(f"O{i}", "E1", "Medellín", "2026-06-01T00:00:00",
-                                  "2027-06-01T00:00:00", valor_del_contrato="1000"))
-    raw = make_raw(contracts=contracts)
+                                  "2027-06-01T00:00:00", proceso_de_compra=f"P{i}"))
+    # An open contract whose procurement process is missing must not be scored.
+    contracts.append(contract("NOPROC", "E1", "Medellín", "2026-06-01T00:00:00",
+                              "2027-06-01T00:00:00", proceso_de_compra="MISSING"))
+    processes = [{"id_del_portafolio": f"P{i}", "valor_total_adjudicacion": "5000000",
+                  "precio_base": "6000000", "proveedores_unicos_con": "2"} for i in range(3)]
+    raw = make_raw(contracts=contracts, processes=processes)
     bundle = make_demo_bundle(tmp_path / "bundle")
     out = tmp_path / "web"
     report = export_web_data([raw], bundle, topo(tmp_path / "t.json"), out, AS_OF, min_n=30)
@@ -71,14 +76,14 @@ def test_department_rate_matches_hand_count(setup):
     _, _, out, _ = setup
     dpts = {d["code"]: d for d in read(out / "departments.json")}
     assert dpts["05"]["n_closed"] == 45
-    assert dpts["05"]["extension_rate"] == pytest.approx(10 / 45)
+    assert dpts["05"]["extension_rate"] == pytest.approx(10 / 45, abs=1e-4)
     assert read(out / "summary.json")["n_closed"] == 45
 
 
 def test_rates_suppressed_below_min_n(setup):
     _, _, out, _ = setup
     mpios = {m["code"]: m for m in read(out / "municipalities.json")}
-    assert mpios["05001"]["extension_rate"] == pytest.approx(10 / 40)
+    assert mpios["05001"]["extension_rate"] == pytest.approx(10 / 40, abs=1e-4)
     assert mpios["05002"]["n_closed"] == 5
     assert mpios["05002"]["extension_rate"] is None
     entities = {e["buyer_id"]: e for e in read(out / "entities.json")}
@@ -101,7 +106,7 @@ def test_open_contracts_scored_with_shared_features(setup):
     features = feature_frame(con, closed_only=False).set_index("contract_id").loc[["O0"]]
     expected = bundle.models["has_value_addition"].predict_proba(features.reset_index())[0]
     got = next(c for c in top if c["id_contrato"] == "O0")["value_addition"]["probability"]
-    assert got == pytest.approx(expected)
+    assert got == pytest.approx(expected, abs=1e-4)
 
 
 def test_web_data_has_no_private_fields(setup):
@@ -138,3 +143,17 @@ def test_open_audit_db_accepts_several_roots(make_raw, tmp_path):
                                          "2022-02-01T00:00:00")])
     con = open_audit_db([first, tmp_path / "missing-root"])
     assert con.execute("SELECT count(*) FROM contracts").fetchone()[0] == 1
+
+
+def test_open_contracts_without_process_are_not_scored(setup):
+    _, _, out, report = setup
+    assert report["n_open_scored"] == 3
+    top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]
+    assert "NOPROC" not in {c["id_contrato"] for c in top}
+
+
+def test_floats_are_rounded(setup):
+    _, _, out, _ = setup
+    text = (out / "departments.json").read_text(encoding="utf-8")
+    import re
+    assert not re.search(r"\d\.\d{5,}", text)
