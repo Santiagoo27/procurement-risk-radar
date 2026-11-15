@@ -94,11 +94,12 @@ def run_experiment(
     models_dir: Path = Path("data/models"),
     params: dict | None = None,
     figures_dir: Path | None = Path("docs/figures"),
+    split_dates: tuple | None = None,
 ) -> dict[str, dict[str, float]]:
     import mlflow
 
     df = pd.read_parquet(dataset_path)
-    splits = temporal_split(df)
+    splits = temporal_split(df, *split_dates) if split_dates else temporal_split(df)
     y_test = splits.test[target].astype(int)
 
     mlflow.set_tracking_uri(tracking_uri)

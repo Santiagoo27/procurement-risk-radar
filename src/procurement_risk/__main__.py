@@ -86,7 +86,28 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="quality.json from the last successful run (row counts).")
     quality.add_argument("--out", type=Path, default=config.DATA_DIR / "quality.json")
     quality.add_argument("--run-date", type=date.fromisoformat, default=None)
+
+    re = commands.add_parser("retrain", help="Train challengers and compare with production.")
+    re.add_argument("--raw", type=Path, nargs="+", default=[config.DATA_DIR / "raw"])
+    re.add_argument("--bundle", type=Path, default=Path("serving_bundle"))
+    re.add_argument("--as-of", type=date.fromisoformat, required=True)
+    re.add_argument("--out", type=Path, default=config.DATA_DIR / "retrain")
     return parser
+
+
+def _run_retrain(args: argparse.Namespace) -> None:
+    from procurement_risk.features.build import assemble_dataset
+    from procurement_risk.ops.promotion import retrain
+    from procurement_risk.validate import validate_dataset
+
+    df, summary = assemble_dataset(args.raw, args.as_of)
+    validate_dataset(df)
+    args.out.mkdir(parents=True, exist_ok=True)
+    dataset = args.out / "dataset.parquet"
+    df.to_parquet(dataset, index=False)
+    print(f"dataset: {summary.n_rows:,} closed contracts")
+    decision = retrain(dataset, args.bundle, args.as_of, args.out)
+    print(("PROMOTE" if decision.promote else "KEEP") + ": " + "; ".join(decision.reasons))
 
 
 def _run_check_quality(args: argparse.Namespace) -> None:
@@ -256,6 +277,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_export_web_data(args)
     elif args.command == "check-quality":
         _run_check_quality(args)
+    elif args.command == "retrain":
+        _run_retrain(args)
 
 
 if __name__ == "__main__":

@@ -32,3 +32,26 @@ def temporal_split(
         valid=df[(signed >= t) & (signed < v)].reset_index(drop=True),
         test=df[(signed >= v) & (signed < e)].reset_index(drop=True),
     )
+
+
+def _minus_months(d: date, months: int) -> date:
+    import calendar
+
+    year, month = divmod(d.year * 12 + (d.month - 1) - months, 12)
+    day = min(d.day, calendar.monthrange(year, month + 1)[1])
+    return date(year, month + 1, day)
+
+
+def rolling_split_dates(as_of: date) -> tuple[date, date, date]:
+    """(train_end, valid_end, test_end) for a retrain run on `as_of`.
+
+    The test window is the 18 months that end a year before `as_of` (so most of its
+    contracts have closed); validation is the 6 months before it; training is everything
+    earlier.
+    """
+    from datetime import timedelta
+
+    test_end = as_of - timedelta(days=365)
+    valid_end = _minus_months(test_end, 18)
+    train_end = _minus_months(valid_end, 6)
+    return train_end, valid_end, test_end
