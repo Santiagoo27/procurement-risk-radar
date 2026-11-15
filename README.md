@@ -142,6 +142,8 @@ download, also re-taken on the first day of each month) and `changes-YYYY-MM-DD-
 uv sync --all-extras
 uv run pytest
 uv run ruff check .
+
+cd web && npm ci && npm test -- --run && npm run dev   # web demo on http://localhost:5173
 ```
 
 ## License
