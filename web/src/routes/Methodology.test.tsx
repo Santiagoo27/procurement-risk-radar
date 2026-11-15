@@ -10,6 +10,11 @@ const metrics = (pr: number, roc: number, p5: number, base: number) => ({
 });
 
 vi.mock("../lib/data", () => ({
+  loadAmendmentSize: () => Promise.resolve({
+    since: "2026-11-14", n_contracts_observed: 5710920, n_increased: 2485,
+    median_increase_pct: 0.2333, p75_increase_pct: 0.5, p90_increase_pct: 0.5,
+    share_over_30pct: 0.42, reason: null,
+  }),
   loadMonitoring: () => Promise.resolve({
     as_of: "2026-11-22", status: "watch", n_current: 40000,
     windows: { reference: [null, "2023-01-01"], current: ["2026-08-24", "2026-11-22"] },
@@ -51,5 +56,16 @@ describe("Methodology model health", () => {
     expect(screen.getByText("Signing month")).toBeInTheDocument();
     expect(screen.getByText("0.41")).toBeInTheDocument();
     expect(screen.getByText(/fewer than 500 closed/)).toBeInTheDocument();
+  });
+});
+
+
+describe("Methodology addition size", () => {
+  it("shows the median increase with its sample and start date", async () => {
+    render(<MemoryRouter><Methodology /></MemoryRouter>);
+    expect(await screen.findByText(/How big are additions/)).toBeInTheDocument();
+    expect(screen.getByText(/23\.3%/)).toBeInTheDocument();
+    expect(screen.getByText(/2,485 contracts/)).toBeInTheDocument();
+    expect(screen.getByText(/since 2026-11-14/)).toBeInTheDocument();
   });
 });

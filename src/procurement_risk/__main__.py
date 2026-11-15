@@ -100,7 +100,23 @@ def _build_parser() -> argparse.ArgumentParser:
     mon.add_argument("--bundle", type=Path, default=Path("serving_bundle"))
     mon.add_argument("--as-of", type=date.fromisoformat, required=True)
     mon.add_argument("--out", type=Path, default=Path("web/public/data/monitoring.json"))
+
+    size = commands.add_parser("amendment-size", help="Addition sizes from the snapshots.")
+    size.add_argument("--snapshots", type=Path, default=config.DATA_DIR / "snapshots")
+    size.add_argument("--out", type=Path, default=Path("web/public/data/amendment-size.json"))
     return parser
+
+
+def _run_amendment_size(args: argparse.Namespace) -> None:
+    import json
+
+    from procurement_risk.ops.severity import load_history, summary
+
+    result = summary(load_history(args.snapshots))
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print(f"{result['n_increased']:,} of {result['n_contracts_observed']:,} contracts increased "
+          f"since {result['since']}; median {result['median_increase_pct']}")
 
 
 def _run_monitor(args: argparse.Namespace) -> None:
@@ -303,6 +319,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_retrain(args)
     elif args.command == "monitor":
         _run_monitor(args)
+    elif args.command == "amendment-size":
+        _run_amendment_size(args)
 
 
 if __name__ == "__main__":

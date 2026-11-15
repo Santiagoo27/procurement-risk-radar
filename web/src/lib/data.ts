@@ -120,3 +120,18 @@ export interface Monitoring {
 /** Optional: null when the weekly job has not produced a report yet. */
 export const loadMonitoring = () =>
   load<Monitoring>("/data/monitoring.json", "monitoring").catch(() => null);
+
+export interface AmendmentSize {
+  since: string | null;
+  n_contracts_observed: number;
+  n_increased: number;
+  median_increase_pct: number | null;
+  p75_increase_pct: number | null;
+  p90_increase_pct: number | null;
+  share_over_30pct: number | null;
+  reason: string | null;
+}
+
+/** Optional: null until the weekly job has produced it. */
+export const loadAmendmentSize = () =>
+  load<AmendmentSize>("/data/amendment-size.json", "amendment size").catch(() => null);

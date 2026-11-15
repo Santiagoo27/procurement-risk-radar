@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { DISCLAIMER } from "../components/Disclaimer";
-import { loadMonitoring, loadSummary, type Monitoring, type Summary } from "../lib/data";
+import {
+  loadAmendmentSize, loadMonitoring, loadSummary,
+  type AmendmentSize, type Monitoring, type Summary,
+} from "../lib/data";
 import { count, pct } from "../lib/format";
 
 const REPO = "https://github.com/Santiagoo27/procurement-risk-radar";
@@ -10,9 +13,11 @@ const doc = (path: string) => `${REPO}/blob/main/${path}`;
 export default function Methodology() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [monitoring, setMonitoring] = useState<Monitoring | null>(null);
+  const [size, setSize] = useState<AmendmentSize | null>(null);
   useEffect(() => {
     loadSummary().then(setSummary).catch(() => setSummary(null));
     loadMonitoring().then(setMonitoring);
+    loadAmendmentSize().then(setSize);
   }, []);
 
   return (
@@ -70,6 +75,25 @@ export default function Methodology() {
           around 15%, about 15% were amended.
         </p>
       </Section>
+
+      {size && (
+        <Section title="How big are additions?">
+          {size.median_increase_pct === null ? (
+            <p className="text-sm text-muted">
+              Not enough data yet: {size.reason}. The archive started on {size.since}.
+            </p>
+          ) : (
+            <p>
+              SECOP does not publish the amount of each addition, so a nightly archive records
+              every contract's value since {size.since}. So far {count(size.n_increased)}{" "}
+              contracts have increased in value. The median increase is{" "}
+              <b>{pct(size.median_increase_pct)}</b>; one in four rose by more than{" "}
+              {pct(size.p75_increase_pct)}, and {pct(size.share_over_30pct)} rose by more than
+              30%. These are early figures and will stabilise as the archive grows.
+            </p>
+          )}
+        </Section>
+      )}
 
       {monitoring && (
         <Section title="Model health">
