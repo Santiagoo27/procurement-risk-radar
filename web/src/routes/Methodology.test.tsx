@@ -10,6 +10,16 @@ const metrics = (pr: number, roc: number, p5: number, base: number) => ({
 });
 
 vi.mock("../lib/data", () => ({
+  loadMonitoring: () => Promise.resolve({
+    as_of: "2026-11-22", status: "watch", n_current: 40000,
+    windows: { reference: [null, "2023-01-01"], current: ["2026-08-24", "2026-11-22"] },
+    feature_drift: [
+      { feature: "signing_month", label: "Signing month", psi: 0.41, shifted: true },
+      { feature: "n_bidders", label: "Number of bidders", psi: 0.03, shifted: false },
+    ],
+    score_shift: { reference_mean: 0.10, current_mean: 0.12 },
+    realized: { pr_auc: null, n: 12, test_pr_auc: 0.243, reason: "fewer than 500 closed" },
+  }),
   loadSummary: () => Promise.resolve({
     min_n: 30, n_closed: 2410377, observed_period: ["2022-01-01", "2025-01-01"],
     as_of: "2026-11-14", bundle_version: "2026-11-14",
@@ -29,5 +39,17 @@ describe("Methodology page", () => {
     expect(screen.getAllByText(/not allegations of wrongdoing/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /model card/i })).toHaveAttribute("href",
       expect.stringContaining("docs/model-card.md"));
+  });
+});
+
+
+describe("Methodology model health", () => {
+  it("shows the monitoring status and the most shifted feature", async () => {
+    render(<MemoryRouter><Methodology /></MemoryRouter>);
+    expect(await screen.findByText(/Model health/)).toBeInTheDocument();
+    expect(screen.getByText(/Watch/)).toBeInTheDocument();
+    expect(screen.getByText("Signing month")).toBeInTheDocument();
+    expect(screen.getByText("0.41")).toBeInTheDocument();
+    expect(screen.getByText(/fewer than 500 closed/)).toBeInTheDocument();
   });
 });

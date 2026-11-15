@@ -102,8 +102,11 @@ def _write(out_dir: Path, models: dict[str, RiskModel], buyers: pd.DataFrame,
 
 
 def _metadata(version: str, as_of: str, global_rates: dict, metrics: dict,
-              quantiles: dict) -> dict:
+              quantiles: dict, train_end: str = "2023-01-01",
+              data_end: str = "2025-01-01") -> dict:
     return {
+        "train_end": train_end,
+        "data_end": data_end,
         "bundle_version": version,
         "as_of": as_of,
         "features": FEATURES,
@@ -118,7 +121,8 @@ def _metadata(version: str, as_of: str, global_rates: dict, metrics: dict,
 
 
 def export_bundle(raw_dir: Path, dataset_path: Path, models_dir: Path, out_dir: Path,
-                  as_of: date) -> Path:
+                  as_of: date, split_dates: tuple[date, date, date] | None = None) -> Path:
+    """`split_dates` = (train_end, valid_end, test_end) the models were trained with."""
     from procurement_risk.audit.metrics import open_audit_db
     from procurement_risk.canonical.colombia import build_canonical
     from procurement_risk.features.labels import build_labels
@@ -161,13 +165,16 @@ def export_bundle(raw_dir: Path, dataset_path: Path, models_dir: Path, out_dir: 
     dataset = pd.read_parquet(dataset_path)
     # Supplier/buyer smoothing must use the rates the model was trained with: closed
     # train-period rows of the training dataset, not labels rebuilt at the export date.
-    train_rows = temporal_split(dataset).train
-    if len(train_rows):
-        rates = {t: float(train_rows[t].astype(float).mean()) for t in TARGETS}
-    test = temporal_split(dataset).test
+    splits = temporal_split(dataset, *split_dates) if split_dates else temporal_split(dataset)
+    if len(splits.train):
+        rates = {t: float(splits.train[t].astype(float).mean()) for t in TARGETS}
+    test = splits.test
     reference = test if len(test) else dataset
     quantiles = {t: _quantiles(models[t], reference) for t in TARGETS}
-    meta = _metadata(as_of.isoformat(), as_of.isoformat(), rates, metrics, quantiles)
+    window = {}
+    if split_dates:
+        window = {"train_end": split_dates[0].isoformat(), "data_end": split_dates[2].isoformat()}
+    meta = _metadata(as_of.isoformat(), as_of.isoformat(), rates, metrics, quantiles, **window)
     return _write(out_dir, models, buyers, meta)
 
 

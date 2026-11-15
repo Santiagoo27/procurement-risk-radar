@@ -29,6 +29,11 @@ class MonitoringThresholds:
     realized_pr_auc_drop: float = 0.03
 
 
+# Inputs that drift by construction: calendar features follow the season of the current
+# window, and history counts grow as the archive accumulates. Reported, never alerted on.
+EXPECTED_DRIFT = frozenset({"signing_month", "signed_in_december", "buyer_prior_n",
+                            "supplier_prior_n"})
+
 QUALITY = QualityThresholds()
 GATE = PromotionGate()
 MONITORING = MonitoringThresholds()

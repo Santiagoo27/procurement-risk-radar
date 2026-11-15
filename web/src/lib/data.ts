@@ -104,3 +104,19 @@ export const loadEntityShard = (slug: string) =>
   load<EntityShard>(`/data/entities/${slug}.json`, `entities of ${slug}`);
 export const loadTopology = () =>
   load<Topology>("/geo/colombia-municipalities.topo.json", "map boundaries");
+
+export interface Monitoring {
+  as_of: string;
+  status: "ok" | "watch" | "insufficient_data";
+  n_current: number;
+  windows: { reference: [string | null, string]; current: [string, string] };
+  feature_drift: { feature: string; label: string; psi: number | null; shifted: boolean;
+    expected?: boolean }[];
+  score_shift: { reference_mean: number | null; current_mean: number | null };
+  realized: { pr_auc: number | null; n: number; test_pr_auc: number | null;
+    positive_rate?: number | null; reason: string | null };
+}
+
+/** Optional: null when the weekly job has not produced a report yet. */
+export const loadMonitoring = () =>
+  load<Monitoring>("/data/monitoring.json", "monitoring").catch(() => null);

@@ -68,6 +68,8 @@ def _build_parser() -> argparse.ArgumentParser:
     export.add_argument("--models", type=Path, default=config.DATA_DIR / "models")
     export.add_argument("--out", type=Path, default=Path("serving_bundle"))
     export.add_argument("--as-of", type=date.fromisoformat, required=True)
+    export.add_argument("--rolling-split", action="store_true",
+                        help="Models were trained with the rolling split for --as-of.")
 
     demo = commands.add_parser("demo-bundle", help="Build a synthetic bundle (tests, CI).")
     demo.add_argument("--out", type=Path, default=Path("serving_bundle"))
@@ -92,7 +94,25 @@ def _build_parser() -> argparse.ArgumentParser:
     re.add_argument("--bundle", type=Path, default=Path("serving_bundle"))
     re.add_argument("--as-of", type=date.fromisoformat, required=True)
     re.add_argument("--out", type=Path, default=config.DATA_DIR / "retrain")
+
+    mon = commands.add_parser("monitor", help="Drift and realized-performance report.")
+    mon.add_argument("--raw", type=Path, nargs="+", default=[config.DATA_DIR / "raw"])
+    mon.add_argument("--bundle", type=Path, default=Path("serving_bundle"))
+    mon.add_argument("--as-of", type=date.fromisoformat, required=True)
+    mon.add_argument("--out", type=Path, default=Path("web/public/data/monitoring.json"))
     return parser
+
+
+def _run_monitor(args: argparse.Namespace) -> None:
+    import json
+
+    from procurement_risk.ops.monitoring import monitor_from_raw
+
+    report = monitor_from_raw(args.raw, args.bundle, args.as_of)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    shifted = [d["feature"] for d in report["feature_drift"] if d["shifted"]]
+    print(f"status {report['status']}; shifted features: {shifted or 'none'}")
 
 
 def _run_retrain(args: argparse.Namespace) -> None:
@@ -139,9 +159,11 @@ def _run_export_web_data(args: argparse.Namespace) -> None:
 
 
 def _run_export_bundle(args: argparse.Namespace) -> None:
+    from procurement_risk.model.split import rolling_split_dates
     from procurement_risk.serving.bundle import export_bundle, load_bundle
 
-    out = export_bundle(args.raw, args.dataset, args.models, args.out, args.as_of)
+    dates = rolling_split_dates(args.as_of) if args.rolling_split else None
+    out = export_bundle(args.raw, args.dataset, args.models, args.out, args.as_of, dates)
     bundle = load_bundle(out)
     size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
     print(f"wrote {out}: {len(bundle.buyers):,} buyers, {size / 1e6:.1f} MB")
@@ -279,6 +301,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_check_quality(args)
     elif args.command == "retrain":
         _run_retrain(args)
+    elif args.command == "monitor":
+        _run_monitor(args)
 
 
 if __name__ == "__main__":

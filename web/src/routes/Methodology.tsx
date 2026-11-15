@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { DISCLAIMER } from "../components/Disclaimer";
-import { loadSummary, type Summary } from "../lib/data";
+import { loadMonitoring, loadSummary, type Monitoring, type Summary } from "../lib/data";
 import { count, pct } from "../lib/format";
 
 const REPO = "https://github.com/Santiagoo27/procurement-risk-radar";
@@ -9,7 +9,11 @@ const doc = (path: string) => `${REPO}/blob/main/${path}`;
 
 export default function Methodology() {
   const [summary, setSummary] = useState<Summary | null>(null);
-  useEffect(() => { loadSummary().then(setSummary).catch(() => setSummary(null)); }, []);
+  const [monitoring, setMonitoring] = useState<Monitoring | null>(null);
+  useEffect(() => {
+    loadSummary().then(setSummary).catch(() => setSummary(null));
+    loadMonitoring().then(setMonitoring);
+  }, []);
 
   return (
     <article className="max-w-3xl space-y-8 leading-relaxed">
@@ -67,6 +71,12 @@ export default function Methodology() {
         </p>
       </Section>
 
+      {monitoring && (
+        <Section title="Model health">
+          <ModelHealth monitoring={monitoring} />
+        </Section>
+      )}
+
       <Section title="Reading the map">
         <ul className="list-disc space-y-1 pl-5">
           <li>Regions are placed by where the <b>buying entity</b> is registered, not by where the
@@ -106,6 +116,49 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="text-lg font-semibold">{title}</h2>
       {children}
     </section>
+  );
+}
+
+const STATUS: Record<Monitoring["status"], string> = {
+  ok: "OK: recent contracts look like the training data",
+  watch: "Watch: some inputs or results have shifted",
+  insufficient_data: "Not enough recent data to check yet",
+};
+
+function ModelHealth({ monitoring: m }: { monitoring: Monitoring }) {
+  const top = m.feature_drift.filter((d) => d.psi !== null && !d.expected).slice(0, 5);
+  return (
+    <div className="space-y-3 text-sm">
+      <p>
+        <b>{STATUS[m.status]}</b> (checked {m.as_of}, {m.n_current.toLocaleString("en-US")}{" "}
+        contracts signed {m.windows.current[0]} to {m.windows.current[1]}).
+      </p>
+      {top.length > 0 && (
+        <table className="text-sm">
+          <thead className="text-left text-muted">
+            <tr><th className="pr-4 font-medium">Input</th>
+              <th className="pr-4 font-medium">Shift (PSI)</th><th /></tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {top.map((d) => (
+              <tr key={d.feature}>
+                <td className="pr-4">{d.label}</td>
+                <td className="pr-4">{d.psi?.toFixed(2)}</td>
+                <td>{d.shifted && <span className="rounded bg-amber-100 px-1 text-xs text-amber-900">shifted</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="text-muted">
+        {m.realized.pr_auc !== null
+          ? `On contracts that closed after the model was trained, PR-AUC is ${m.realized.pr_auc.toFixed(3)} with a base rate of ${((m.realized.positive_rate ?? 0) * 100).toFixed(1)}% (n = ${m.realized.n.toLocaleString("en-US")}; test PR-AUC ${m.realized.test_pr_auc?.toFixed(3)}). PR-AUC rises with the base rate, so compare it with care.`
+          : `Out-of-time performance: ${m.realized.reason}.`}{" "}
+        PSI above 0.2 means an input's distribution has shifted noticeably since training.
+        Calendar inputs and history counts are left out: they change with the season and
+        as the archive grows.
+      </p>
+    </div>
   );
 }
 

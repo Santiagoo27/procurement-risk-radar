@@ -124,3 +124,9 @@ def test_bundle_records_library_versions_and_rejects_mismatch(demo, tmp_path):
     (broken / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
     with pytest.raises(BundleError, match="lightgbm"):
         load_bundle(broken)
+
+
+def test_bundle_records_training_window(demo):
+    meta = json.loads((demo / "metadata.json").read_text(encoding="utf-8"))
+    assert meta["train_end"] == "2023-01-01"
+    assert meta["data_end"] == "2025-01-01"
