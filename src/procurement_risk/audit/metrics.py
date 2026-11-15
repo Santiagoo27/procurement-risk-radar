@@ -13,11 +13,18 @@ VALUE_ADDITION = "Adicion en el valor"
 HIDDEN_TYPES = ("Modificacion General", "No definido")
 
 
-def open_audit_db(raw_dir: Path) -> duckdb.DuckDBPyConnection:
+def open_audit_db(raw_dir: Path | list[Path]) -> duckdb.DuckDBPyConnection:
+    """Views over one or several raw roots (e.g. data/raw and data/raw_recent)."""
+    roots = [Path(r) for r in (raw_dir if isinstance(raw_dir, (list, tuple)) else [raw_dir])]
     con = duckdb.connect()
     for name in ("contracts", "amendments", "processes"):
-        pattern = (Path(raw_dir) / name / "*.parquet").as_posix()
-        con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_parquet('{pattern}')")
+        patterns = [(r / name / "*.parquet").as_posix() for r in roots
+                    if any((r / name).glob("*.parquet"))]
+        if not patterns:
+            raise FileNotFoundError(f"no {name} parquet files under {[str(r) for r in roots]}")
+        files = ", ".join(f"'{p}'" for p in patterns)
+        con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_parquet([{files}], "
+                    "union_by_name = true)")
     con.create_function(
         "looks_like_value_addition", looks_like_value_addition, ["VARCHAR"], "BOOLEAN",
         null_handling="special",

@@ -71,7 +71,27 @@ def _build_parser() -> argparse.ArgumentParser:
 
     demo = commands.add_parser("demo-bundle", help="Build a synthetic bundle (tests, CI).")
     demo.add_argument("--out", type=Path, default=Path("serving_bundle"))
+
+    web = commands.add_parser("export-web-data", help="Write static JSON for the web demo.")
+    web.add_argument("--raw", type=Path, nargs="+", default=[config.DATA_DIR / "raw"])
+    web.add_argument("--bundle", type=Path, default=Path("serving_bundle"))
+    web.add_argument("--topo", type=Path,
+                     default=Path("web/public/geo/colombia-municipalities.topo.json"))
+    web.add_argument("--out", type=Path, default=Path("web/public/data"))
+    web.add_argument("--as-of", type=date.fromisoformat, required=True)
     return parser
+
+
+def _run_export_web_data(args: argparse.Namespace) -> None:
+    from procurement_risk.web.export import export_web_data
+
+    report = export_web_data(args.raw, args.bundle, args.topo, args.out, args.as_of)
+    cov = report["coverage"]
+    print(f"closed {report['n_closed']:,}, open scored {report['n_open_scored']:,}; coverage "
+          f"department {cov['department_share']:.1%}, municipality {cov['municipality_share']:.1%}")
+    for name, size in sorted(report["sizes"].items(), key=lambda kv: -kv[1])[:8]:
+        print(f"  {name}: {size / 1e3:.0f} KB")
+    print(f"  total: {sum(report['sizes'].values()) / 1e6:.2f} MB in {len(report['sizes'])} files")
 
 
 def _run_export_bundle(args: argparse.Namespace) -> None:
@@ -209,6 +229,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         _run_export_bundle(args)
     elif args.command == "demo-bundle":
         _run_demo_bundle(args)
+    elif args.command == "export-web-data":
+        _run_export_web_data(args)
 
 
 if __name__ == "__main__":
