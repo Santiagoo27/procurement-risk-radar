@@ -38,6 +38,7 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.5",
+    "shapely>=2.2.0",
 ]
 
 [tool.ruff]
