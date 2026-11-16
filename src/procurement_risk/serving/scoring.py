@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from procurement_risk.canonical.colombia import MAX_DURATION_DAYS, SEGMENT_SQL
-from procurement_risk.features.build import CATEGORICAL_FEATURES, feature_frame
+from procurement_risk.features.build import feature_frame
 from procurement_risk.model.explain import top_signals
 from procurement_risk.serving.bundle import Bundle
 from procurement_risk.serving.labels import FEATURE_LABELS
@@ -129,8 +129,8 @@ def score(bundle: Bundle, contracts: list[dict[str, Any]]) -> list[dict[str, Any
     features = features_for(bundle, contracts)
     any_model = next(iter(bundle.models.values()))
     warnings: list[list[str]] = [[] for _ in range(len(features))]
-    for col in CATEGORICAL_FEATURES:
-        known = set(any_model.categories[col])
+    for col, values in any_model.categories.items():
+        known = set(values)
         for i, value in enumerate(features[col]):
             if value is not None and not pd.isna(value) and value not in known:
                 warnings[i].append(f"unseen value for {col}: {value}")

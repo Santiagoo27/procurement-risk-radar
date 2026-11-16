@@ -65,8 +65,9 @@ def load_bundle(path: Path) -> Bundle:
     if not meta_path.exists():
         raise BundleError(f"{meta_path} not found")
     metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-    if metadata.get("features") != FEATURES:
-        raise BundleError("bundle features do not match this code version's features")
+    unknown = [f for f in metadata.get("features", []) if f not in FEATURES]
+    if unknown or not metadata.get("features"):
+        raise BundleError(f"bundle features this code cannot compute: {unknown or 'none listed'}")
     recorded = metadata.get("library_versions", {})
     current = library_versions()
     for lib in CHECKED_LIBRARIES:
@@ -79,6 +80,10 @@ def load_bundle(path: Path) -> Bundle:
         if not model_path.exists():
             raise BundleError(f"missing model for {target}: {model_path}")
         models[target] = joblib.load(model_path)
+        unknown = [f for f in models[target].feature_names if f not in FEATURES]
+        if unknown:
+            raise BundleError(f"{target} model needs features this code cannot compute: "
+                              f"{unknown}")
     buyers = pd.read_parquet(path / "buyers.parquet")
     return Bundle(models=models, buyers=buyers, metadata=metadata)
 
@@ -103,13 +108,13 @@ def _write(out_dir: Path, models: dict[str, RiskModel], buyers: pd.DataFrame,
 
 def _metadata(version: str, as_of: str, global_rates: dict, metrics: dict,
               quantiles: dict, train_end: str = "2023-01-01",
-              data_end: str = "2025-01-01") -> dict:
+              data_end: str = "2025-01-01", features: list[str] | None = None) -> dict:
     return {
         "train_end": train_end,
         "data_end": data_end,
         "bundle_version": version,
         "as_of": as_of,
-        "features": FEATURES,
+        "features": features or FEATURES,
         "categorical_features": list(CATEGORICAL_FEATURES),
         "global_rates": global_rates,
         "metrics": metrics,
@@ -180,7 +185,9 @@ def export_bundle(raw_dir: Path, dataset_path: Path, models_dir: Path, out_dir: 
     if sources and "data_end" in window:
         # Realized performance must use contracts that no model in the bundle has seen.
         window["data_end"] = max([window["data_end"], *(s["data_end"] for s in sources.values())])
-    meta = _metadata(as_of.isoformat(), as_of.isoformat(), rates, metrics, quantiles, **window)
+    used = {f for m in models.values() for f in m.feature_names}
+    meta = _metadata(as_of.isoformat(), as_of.isoformat(), rates, metrics, quantiles, **window,
+                     features=[f for f in FEATURES if f in used])
     if sources:
         meta["model_sources"] = sources
     return _write(out_dir, models, buyers, meta)

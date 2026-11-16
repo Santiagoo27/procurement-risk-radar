@@ -135,3 +135,15 @@ def test_dataset_summary_uses_given_split_dates(synthetic, tmp_path):
     assert summary["split_sizes"] == {"train": len(splits.train), "valid": len(splits.valid),
                                       "test": len(splits.test)}
     assert dataset_summary(ds)["split_dates"] == ["2023-01-01", "2023-07-01", "2025-01-01"]
+
+
+def test_model_with_fewer_features_still_scores(synthetic, monkeypatch):
+    from procurement_risk.model import train
+
+    fewer = tuple(f for f in train.FEATURES if f != "extendable_clause")
+    monkeypatch.setattr(train, "FEATURES", fewer)
+    model = train_lightgbm(temporal_split(synthetic), "has_value_addition", FAST)
+    monkeypatch.undo()
+    assert "extendable_clause" not in model.feature_names
+    assert "extendable_clause" in train.FEATURES
+    assert len(model.predict_raw(synthetic)) == len(synthetic)

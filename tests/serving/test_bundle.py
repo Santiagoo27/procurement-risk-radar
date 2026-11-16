@@ -31,15 +31,20 @@ def test_demo_bundle_roundtrip(demo):
         assert np.all(np.diff(q) >= 0)
 
 
-def test_bundle_rejects_feature_mismatch(demo, tmp_path):
-    broken = tmp_path / "broken"
-    shutil.copytree(demo, broken)
-    meta = json.loads((broken / "metadata.json").read_text(encoding="utf-8"))
-    meta["features"] = meta["features"][:-1]
-    (broken / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-    with pytest.raises(BundleError, match="features"):
-        load_bundle(broken)
+def test_bundle_accepts_subset_and_rejects_unknown_features(demo, tmp_path):
+    meta = json.loads((demo / "metadata.json").read_text(encoding="utf-8"))
+    older = tmp_path / "older"
+    shutil.copytree(demo, older)
+    (older / "metadata.json").write_text(
+        json.dumps({**meta, "features": meta["features"][:-1]}), encoding="utf-8")
+    load_bundle(older)  # a bundle trained with fewer features still loads
 
+    newer = tmp_path / "newer"
+    shutil.copytree(demo, newer)
+    (newer / "metadata.json").write_text(
+        json.dumps({**meta, "features": [*meta["features"], "made_up"]}), encoding="utf-8")
+    with pytest.raises(BundleError, match="made_up"):
+        load_bundle(newer)
 
 def test_bundle_rejects_missing_model(demo, tmp_path):
     broken = tmp_path / "broken"

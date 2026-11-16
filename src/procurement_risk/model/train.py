@@ -37,14 +37,16 @@ class RiskModel:
     """Booster + calibrator + the categorical vocabulary fixed at training time."""
 
     def __init__(self, booster: lgb.Booster, calibrator: IsotonicRegression,
-                 categories: dict[str, list[str]]) -> None:
+                 categories: dict[str, list[str]],
+                 feature_names: list[str] | None = None) -> None:
         self.booster = booster
         self.calibrator = calibrator
         self.categories = categories
-        self.feature_names = list(FEATURES)
+        # The model's own inputs: a bundle may hold models trained with different lists.
+        self.feature_names = list(feature_names or FEATURES)
 
     def frame(self, df: pd.DataFrame) -> pd.DataFrame:
-        return _prepare(df, self.categories)
+        return _prepare(df, self.categories, self.feature_names)
 
     def predict_raw(self, df: pd.DataFrame) -> np.ndarray:
         return self.booster.predict(self.frame(df))
@@ -53,26 +55,32 @@ class RiskModel:
         return np.clip(self.calibrator.predict(self.predict_raw(df)), 0.0, 1.0)
 
 
-def _prepare(df: pd.DataFrame, categories: dict[str, list[str]]) -> pd.DataFrame:
-    out = df.loc[:, list(FEATURES)].copy()
-    for col in CATEGORICAL_FEATURES:
-        out[col] = pd.Categorical(out[col].astype("object"), categories=categories[col])
-    for col in NUMERIC_FEATURES:
-        out[col] = pd.to_numeric(out[col], errors="coerce").astype(float)
+def _prepare(df: pd.DataFrame, categories: dict[str, list[str]],
+             features: list[str] | tuple[str, ...] | None = None) -> pd.DataFrame:
+    features = list(features or FEATURES)
+    out = df.loc[:, features].copy()
+    for col in features:
+        if col in CATEGORICAL_FEATURES:
+            out[col] = pd.Categorical(out[col].astype("object"), categories=categories[col])
+        else:
+            out[col] = pd.to_numeric(out[col], errors="coerce").astype(float)
     return out
 
 
 def train_lightgbm(splits: Splits, target: str, params: dict | None = None) -> RiskModel:
     p = {**DEFAULT_PARAMS, **(params or {})}
     rounds = p.pop("n_estimators")
+    features = list(FEATURES)
+    categorical = [c for c in features if c in CATEGORICAL_FEATURES]
     categories = {
         col: sorted(splits.train[col].dropna().astype(str).unique().tolist())
-        for col in CATEGORICAL_FEATURES
+        for col in categorical
     }
-    x_train, x_valid = _prepare(splits.train, categories), _prepare(splits.valid, categories)
+    x_train = _prepare(splits.train, categories, features)
+    x_valid = _prepare(splits.valid, categories, features)
     y_train = splits.train[target].astype(int)
     y_valid = splits.valid[target].astype(int)
-    train_set = lgb.Dataset(x_train, y_train, categorical_feature=list(CATEGORICAL_FEATURES))
+    train_set = lgb.Dataset(x_train, y_train, categorical_feature=categorical)
     valid_set = lgb.Dataset(x_valid, y_valid, reference=train_set)
     booster = lgb.train(
         {**p, "metric": "average_precision"},
@@ -84,7 +92,7 @@ def train_lightgbm(splits: Splits, target: str, params: dict | None = None) -> R
     # Calibration uses the validation period only; the test period stays untouched.
     calibrator = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
     calibrator.fit(booster.predict(x_valid), y_valid)
-    return RiskModel(booster, calibrator, categories)
+    return RiskModel(booster, calibrator, categories, features)
 
 
 def baseline_scores(splits: Splits, target: str) -> dict[str, np.ndarray]:
