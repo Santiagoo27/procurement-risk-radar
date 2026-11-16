@@ -96,3 +96,22 @@ def test_feature_frame_without_labels_matches_training_features(make_raw):
     cols = ["contract_id", *CATEGORICAL_FEATURES, *NUMERIC_FEATURES]
     got = serving[serving.contract_id.isin(training.contract_id)][cols].reset_index(drop=True)
     assert_frame_equal(got, training[cols].reset_index(drop=True), check_dtype=False)
+
+
+def test_global_prior_follows_train_end(make_raw):
+    # Two closed contracts for E1: one with an extension signed 2021, one without in 2022.
+    raw = make_raw(contracts=[
+        contract("1", fecha_de_firma="2021-01-10T00:00:00",
+                 fecha_de_fin_del_contrato="2021-02-10T00:00:00", dias_adicionados="5",
+                 proceso_de_compra="X1"),
+        contract("2", fecha_de_firma="2022-03-10T00:00:00",
+                 fecha_de_fin_del_contrato="2022-04-10T00:00:00", proceso_de_compra="X2"),
+        contract("3", codigo_entidad="NEW", fecha_de_firma="2023-03-10T00:00:00",
+                 fecha_de_fin_del_contrato="2023-04-10T00:00:00", proceso_de_compra="X3"),
+    ])
+    early, _ = assemble_dataset(raw, AS_OF, train_end=date(2022, 1, 1))
+    late, _ = assemble_dataset(raw, AS_OF, train_end=date(2023, 1, 1))
+    new_early = early.set_index("contract_id").loc["3", "buyer_prior_extension_rate"]
+    new_late = late.set_index("contract_id").loc["3", "buyer_prior_extension_rate"]
+    assert new_early == 1.0   # only contract 1 (extended) is before 2022-01-01
+    assert new_late == 0.5    # contracts 1 and 2

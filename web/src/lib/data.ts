@@ -114,6 +114,7 @@ export interface Monitoring {
     expected?: boolean }[];
   score_shift: { reference_mean: number | null; current_mean: number | null };
   realized: { pr_auc: number | null; n: number; test_pr_auc: number | null;
+    roc_auc?: number | null; test_roc_auc?: number | null;
     positive_rate?: number | null; reason: string | null };
 }
 

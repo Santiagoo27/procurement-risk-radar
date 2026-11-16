@@ -112,9 +112,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def _run_amendment_size(args: argparse.Namespace) -> None:
     import json
 
-    from procurement_risk.ops.severity import load_history, summary
+    from procurement_risk.ops.severity import summary
 
-    result = summary(load_history(args.snapshots))
+    result = summary(args.snapshots)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"{result['n_increased']:,} of {result['n_contracts_observed']:,} contracts increased "
@@ -135,10 +135,12 @@ def _run_monitor(args: argparse.Namespace) -> None:
 
 def _run_retrain(args: argparse.Namespace) -> None:
     from procurement_risk.features.build import assemble_dataset
+    from procurement_risk.model.split import rolling_split_dates
     from procurement_risk.ops.promotion import retrain
     from procurement_risk.validate import validate_dataset
 
-    df, summary = assemble_dataset(args.raw, args.as_of)
+    df, summary = assemble_dataset(args.raw, args.as_of,
+                                   train_end=rolling_split_dates(args.as_of)[0])
     validate_dataset(df)
     args.out.mkdir(parents=True, exist_ok=True)
     dataset = args.out / "dataset.parquet"

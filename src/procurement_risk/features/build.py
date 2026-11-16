@@ -38,12 +38,12 @@ class DatasetSummary:
     positive_rate: dict[str, float] = field(default_factory=dict)
 
 
-def _global_rates(con) -> dict[str, float]:
+def _global_rates(con, train_end: date = TRAIN_END) -> dict[str, float]:
     """Label rates of closed train-period contracts (prior for history smoothing)."""
     row = con.execute(f"""
         SELECT avg(l.has_value_addition::DOUBLE), avg(l.has_time_extension::DOUBLE)
         FROM labels l JOIN canonical_contracts c USING (contract_id)
-        WHERE l.is_closed AND c.signed_at < DATE '{TRAIN_END.isoformat()}'
+        WHERE l.is_closed AND c.signed_at < DATE '{train_end.isoformat()}'
     """).fetchone()
     return {"has_value_addition": row[0] or 0.0, "has_time_extension": row[1] or 0.0}
 
@@ -99,11 +99,14 @@ def feature_frame(con, closed_only: bool) -> pd.DataFrame:
     """).df()
 
 
-def assemble_dataset(raw_dir: Path, as_of: date) -> tuple[pd.DataFrame, DatasetSummary]:
+def assemble_dataset(raw_dir: Path, as_of: date,
+                     train_end: date | None = None) -> tuple[pd.DataFrame, DatasetSummary]:
+    """`train_end`: end of the training period; the history prior uses only rows before it,
+    so it matches the global rates the serving bundle records for the same split."""
     con = open_audit_db(raw_dir)
     build_canonical(con)
     build_labels(con, as_of)
-    rates = _global_rates(con)
+    rates = _global_rates(con, train_end or TRAIN_END)
     build_history(con, "buyer_id", "buyer", rates)
     build_history(con, "supplier_key", "supplier", rates)
 

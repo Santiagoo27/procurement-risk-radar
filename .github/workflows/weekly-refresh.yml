@@ -65,7 +65,10 @@ jobs:
       - name: Amendment size from the snapshot archive
         run: |
           mkdir -p data/snapshots
-          gh release download snapshots -p "*.parquet" -D data/snapshots
+          # Only the earliest baseline and the changes files are needed (see ops/severity.py).
+          first=$(gh release view snapshots --json assets \
+            -q '[.assets[].name | select(startswith("baseline-"))] | sort | .[0]')
+          gh release download snapshots -p "$first" -p "changes-*.parquet" -D data/snapshots
           uv run python -m procurement_risk amendment-size --snapshots data/snapshots \
             --out web/public/data/amendment-size.json
 
@@ -78,7 +81,12 @@ jobs:
             echo "No changes to commit." | tee -a "$GITHUB_STEP_SUMMARY"
           else
             git commit -m "data: weekly refresh ${{ steps.meta.outputs.as_of }}"
-            git push
+            # main may have moved during the run; the commit only touches web/public/data.
+            for attempt in 1 2 3; do
+              git pull --rebase origin main && git push && break
+              echo "push attempt $attempt failed; retrying"; sleep 15
+              [ "$attempt" = 3 ] && exit 1
+            done
             echo "Committed website data." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 

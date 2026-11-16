@@ -25,14 +25,22 @@ When the monthly retrain finds a better model, you receive a pull request titled
 
 To approve:
 
-1. Read the comparison. The gate already required the new model not to be worse on either
-   target and to be better on at least one.
+1. Read the comparison. The gate already required the new model to be within a small
+   tolerance on both targets (PR-AUC at most 0.005 lower, Brier at most 2% higher) and to
+   improve PR-AUC by at least 0.002 on one of them.
 2. Open the draft release (Releases → `model-YYYY-MM-DD` → Edit) and click **Publish
    release**. Render cannot download a draft.
 3. Update the results table in `README.md` from the new `docs/model-card.md`, if you want the
    README to show the new numbers.
 4. **Merge** the pull request. Render rebuilds the API with the new bundle once CI passes. The
    next weekly refresh rescores the website with it.
+
+The pull request is opened by the workflow's own token, and GitHub does not run other
+workflows for those events. CI therefore does not run on it automatically. To get checks
+before merging, close and reopen the pull request; that event comes from you, so CI runs.
+
+If an earlier model pull request is still open, the monthly job does not open another one.
+Approve or close the open one first.
 
 To reject, close the pull request and delete the draft release.
 
@@ -66,15 +74,16 @@ The website shows it under Methodology → Model health. It contains:
 
 - `status`:
   - `ok`;
-  - `watch`: an input shifted (PSI above 0.2), or realized PR-AUC is 0.03 below the test
-    PR-AUC;
+  - `watch`: an input shifted (PSI above 0.2), or realized ROC-AUC is 0.03 below the test
+    ROC-AUC;
   - `insufficient_data`.
 - `feature_drift`: PSI per input, comparing the last 90 days with the training period.
   Calendar inputs and history counts are marked `expected`, because they shift with the
   season and as the archive grows. They never trigger `watch`.
-- `realized`: PR-AUC on contracts that closed after the model's training data ended and that
-  have complete tender data. PR-AUC rises with the base rate, so read it together with
-  `positive_rate`.
+- `realized`: PR-AUC and ROC-AUC on contracts that closed after the model's training data
+  ended and that have complete tender data. The `watch` alert uses ROC-AUC (0.03 below the
+  test ROC-AUC), because PR-AUC rises with the base rate and that sample's base rate differs
+  from the test period's.
 
 A `watch` status does not mean the model is wrong. It is a prompt to look at the next
 monthly retrain comparison.

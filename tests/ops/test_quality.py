@@ -8,7 +8,7 @@ from procurement_risk.ops.quality import check_raw
 
 RUN = date(2026, 11, 15)
 SMALL = QualityThresholds(min_process_rows=3, max_staleness_days=14, max_null_share=0.05,
-                          min_count_ratio=0.95)
+                          min_count_ratio=0.95, min_contract_rows=5, min_amendment_rows=3)
 
 
 def contracts(n, signed="2026-11-10T00:00:00", **kw):
@@ -77,3 +77,22 @@ def test_cli_exit_code_4_on_failure(make_raw, tmp_path, monkeypatch):
                   "--run-date", RUN.isoformat()])
     assert exc.value.code == 4
     assert json.loads(out.read_text(encoding="utf-8"))["passed"] is False
+
+
+def test_truncated_amendments_fail_without_previous(make_raw):
+    raw = make_raw(contracts=contracts(20), amendments=amendments(2), processes=processes(10))
+    report = check_raw(raw, previous=None, run_date=RUN, thresholds=SMALL)
+    assert not names(report)["amendments row count"].passed
+
+
+def test_truncated_contracts_fail_without_previous(make_raw):
+    raw = make_raw(contracts=contracts(3), amendments=amendments(5), processes=processes(10))
+    report = check_raw(raw, previous=None, run_date=RUN, thresholds=SMALL)
+    assert not names(report)["contracts row count"].passed
+
+
+def test_future_dated_rows_do_not_hide_stale_data(make_raw):
+    rows = contracts(19, signed="2026-09-01T00:00:00") + contracts(1, signed="2031-01-01T00:00:00")
+    raw = make_raw(contracts=rows, amendments=amendments(5), processes=processes(10))
+    report = check_raw(raw, previous=None, run_date=RUN, thresholds=SMALL)
+    assert not names(report)["contracts are recent"].passed

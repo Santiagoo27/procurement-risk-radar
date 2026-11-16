@@ -60,8 +60,11 @@ def check_raw(raw_dir: Path | list[Path], previous: dict | None, run_date: date,
 
     for name, n in counts.items():
         add(Check(f"{name} not empty", n > 0, f"{n:,} rows"))
-    add(Check("processes row count", counts["processes"] >= t.min_process_rows,
-              f"{counts['processes']:,} rows (minimum {t.min_process_rows:,})"))
+    for name, floor in (("contracts", t.min_contract_rows),
+                        ("amendments", t.min_amendment_rows),
+                        ("processes", t.min_process_rows)):
+        add(Check(f"{name} row count", counts[name] >= floor,
+                  f"{counts[name]:,} rows (minimum {floor:,})"))
 
     if previous:
         for name, n in counts.items():
@@ -70,7 +73,10 @@ def check_raw(raw_dir: Path | list[Path], previous: dict | None, run_date: date,
             add(Check(f"{name} row count vs previous", ok,
                       f"{n:,} now vs {before:,} last run (minimum {t.min_count_ratio:.0%})"))
 
-    latest = con.execute("SELECT max(fecha_de_firma) FROM contracts").fetchone()[0]
+    # Future-dated rows (data-entry errors) must not make stale data look recent.
+    latest = con.execute(
+        "SELECT max(fecha_de_firma) FROM contracts WHERE fecha_de_firma <= ?",
+        [run_date + timedelta(days=1)]).fetchone()[0]
     cutoff = run_date - timedelta(days=t.max_staleness_days)
     recent = latest is not None and latest.date() >= cutoff
     add(Check("contracts are recent", recent,

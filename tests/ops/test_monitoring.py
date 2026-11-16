@@ -90,3 +90,33 @@ def test_realized_uses_only_contracts_with_complete_inputs(bundle):
                           date(2026, 11, 14), reference_end=date(2023, 1, 1),
                           data_end=date(2025, 1, 1))
     assert report["realized"]["n"] == 600
+
+
+def test_realized_alert_uses_roc_auc_not_pr_auc(bundle, monkeypatch):
+    from procurement_risk.ops import monitoring
+
+    reference = frame(3000, "2021-01-01", 700, seed=1)
+    late = frame(1200, "2025-02-01", 300, closed=True, seed=3)
+    late["process_found"] = True
+
+    def fake_evaluate(y, score, **kwargs):
+        return {"pr_auc": 0.9, "roc_auc": 0.40, "positive_rate": 0.5}
+
+    monkeypatch.setattr(monitoring, "evaluate", fake_evaluate)
+    report = build_report(pd.concat([reference, late], ignore_index=True), bundle,
+                          date(2026, 11, 14), reference_end=date(2023, 1, 1),
+                          data_end=date(2025, 1, 1))
+    assert report["realized"]["roc_auc"] == 0.40
+    assert report["status"] == "watch"
+
+
+def test_realized_ignores_rows_without_labels(bundle):
+    reference = frame(3000, "2021-01-01", 700, seed=1)
+    late = frame(1200, "2025-02-01", 300, closed=True, seed=3)
+    late["process_found"] = True
+    late["has_value_addition"] = late["has_value_addition"].astype(object)
+    late.loc[late.index[:100], "has_value_addition"] = None
+    report = build_report(pd.concat([reference, late], ignore_index=True), bundle,
+                          date(2026, 11, 14), reference_end=date(2023, 1, 1),
+                          data_end=date(2025, 1, 1))
+    assert report["realized"]["n"] == 1100

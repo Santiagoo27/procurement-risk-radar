@@ -176,7 +176,7 @@ function ModelHealth({ monitoring: m }: { monitoring: Monitoring }) {
       )}
       <p className="text-muted">
         {m.realized.pr_auc !== null
-          ? `On contracts that closed after the model was trained, PR-AUC is ${m.realized.pr_auc.toFixed(3)} with a base rate of ${((m.realized.positive_rate ?? 0) * 100).toFixed(1)}% (n = ${m.realized.n.toLocaleString("en-US")}; test PR-AUC ${m.realized.test_pr_auc?.toFixed(3)}). PR-AUC rises with the base rate, so compare it with care.`
+          ? `On contracts that closed after the model was trained (n = ${m.realized.n.toLocaleString("en-US")}), ROC-AUC is ${m.realized.roc_auc?.toFixed(3) ?? "n/a"} (test: ${m.realized.test_roc_auc?.toFixed(3) ?? "n/a"}). PR-AUC is ${m.realized.pr_auc.toFixed(3)} at a ${((m.realized.positive_rate ?? 0) * 100).toFixed(1)}% base rate; PR-AUC rises with the base rate, so ROC-AUC is the fairer comparison.`
           : `Out-of-time performance: ${m.realized.reason}.`}{" "}
         PSI above 0.2 means an input's distribution has shifted noticeably since training.
         Calendar inputs and history counts are left out: they change with the season and

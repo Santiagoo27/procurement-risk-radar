@@ -83,31 +83,38 @@ def build_report(frame: pd.DataFrame, bundle: Bundle, as_of: date, reference_end
                        "reference_p90": _round(np.quantile(ref_p, 0.9)),
                        "current_p90": _round(np.quantile(cur_p, 0.9))}
 
-    test_pr = bundle.metadata.get("metrics", {}).get("has_value_addition", {}) \
-        .get("lightgbm", {}).get("pr_auc")
+    test_metrics = bundle.metadata.get("metrics", {}).get("has_value_addition", {}) \
+        .get("lightgbm", {})
+    test_pr, test_roc = test_metrics.get("pr_auc"), test_metrics.get("roc_auc")
     # Only contracts whose tender data was found: the others are scored without award value
     # or bidders, which would measure the data gap rather than the model.
     complete = frame["process_found"].astype(bool) if "process_found" in frame else True
-    out_of_time = frame[frame["is_closed"].astype(bool) & (signed >= pd.Timestamp(data_end))
-                        & complete]
-    labels = out_of_time["has_value_addition"].dropna().astype(int) if len(out_of_time) else []
-    if len(out_of_time) < t.min_rows or len(set(labels)) < 2:
-        realized = {"pr_auc": None, "n": int(len(out_of_time)), "test_pr_auc": test_pr,
-                    "reason": f"fewer than {t.min_rows} closed contracts signed after "
-                              f"{data_end.isoformat()} yet"}
+    closed = frame["is_closed"].fillna(False).astype(bool)
+    out_of_time = frame[closed & (signed >= pd.Timestamp(data_end)) & complete]
+    out_of_time = out_of_time[out_of_time["has_value_addition"].notna()]
+    labels = out_of_time["has_value_addition"].astype(int)
+    base = {"pr_auc": None, "roc_auc": None, "n": int(len(out_of_time)),
+            "test_pr_auc": test_pr, "test_roc_auc": test_roc}
+    if len(out_of_time) < t.min_rows:
+        realized = {**base, "reason": f"fewer than {t.min_rows} closed contracts signed after "
+                                      f"{data_end.isoformat()} yet"}
+    elif labels.nunique() < 2:
+        realized = {**base, "reason": "all recent closed contracts have the same outcome"}
     else:
         m = evaluate(labels.to_numpy(), model.predict_raw(out_of_time),
                      y_prob=model.predict_proba(out_of_time))
-        realized = {"pr_auc": _round(m["pr_auc"]), "positive_rate": _round(m["positive_rate"]),
-                    "n": int(len(out_of_time)), "test_pr_auc": test_pr, "reason": None}
+        realized = {**base, "pr_auc": _round(m["pr_auc"]), "roc_auc": _round(m["roc_auc"]),
+                    "positive_rate": _round(m["positive_rate"]), "reason": None}
 
     computable = [d for d in drift if d["psi"] is not None and not d["expected"]]
-    if not computable:
-        status = "insufficient_data"
-    elif any(d["shifted"] for d in computable) or (
-            realized["pr_auc"] is not None and test_pr is not None
-            and realized["pr_auc"] < test_pr - t.realized_pr_auc_drop):
+    if any(d["shifted"] for d in computable) or (
+            # ROC-AUC, not PR-AUC: the out-of-time sample's base rate differs from the test
+            # period's, and PR-AUC moves with the base rate.
+            realized["roc_auc"] is not None and test_roc is not None
+            and realized["roc_auc"] < test_roc - t.realized_pr_auc_drop):
         status = "watch"
+    elif not computable and realized["roc_auc"] is None:
+        status = "insufficient_data"
     else:
         status = "ok"
 

@@ -51,7 +51,8 @@ jobs:
         run: |
           set -o pipefail
           uv run python -m procurement_risk check-quality --raw data/raw \
-            --out data/quality.json --run-date "${{ steps.meta.outputs.as_of }}" \
+            --previous web/public/data/quality.json --out data/quality.json \
+            --run-date "${{ steps.meta.outputs.as_of }}" \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Retrain and compare with production
@@ -82,6 +83,21 @@ jobs:
         run: |
           TAG="model-$AS_OF"
           BRANCH="model/$AS_OF"
+          # Re-runs: an earlier model PR still open means the owner has not decided yet.
+          open_pr=$(gh pr list --state open --search "head:model/" --json headRefName \
+            -q '[.[].headRefName | select(. != env.BRANCH)] | .[0] // empty')
+          if [ -n "$open_pr" ]; then
+            echo "Model PR from $open_pr is still open; not opening another." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Same-day re-run: replace our own draft; never touch a published release.
+          if gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null | grep -q true; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG is already published; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           uv run python -m procurement_risk export-bundle --raw data/raw \
             --dataset data/retrain/dataset.parquet --models data/retrain/models \
             --out data/new_bundle --as-of "$AS_OF" --rolling-split
@@ -100,7 +116,7 @@ jobs:
             --models data/retrain/models --out docs/model-card.md --rolling-as-of "$AS_OF"
           git add Dockerfile.render docs/model-card.md docs/figures
           git commit -m "model: promote $AS_OF"
-          git push -u origin "$BRANCH"
+          git push --force -u origin "$BRANCH"
           {
             cat data/retrain/report.md
             echo
@@ -108,8 +124,12 @@ jobs:
             echo
             echo "Before merging, update the results table in README.md from docs/model-card.md."
           } > pr-body.md
-          gh pr create --base main --head "$BRANCH" --title "model: promote $AS_OF" \
-            --body-file pr-body.md
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --body-file pr-body.md
+          else
+            gh pr create --base main --head "$BRANCH" --title "model: promote $AS_OF" \
+              --body-file pr-body.md
+          fi
 
       - name: Report failure
         if: failure()

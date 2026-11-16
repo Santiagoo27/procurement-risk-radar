@@ -11,6 +11,9 @@ class QualityThresholds:
     max_staleness_days: int = 14
     max_null_share: float = 0.05
     min_count_ratio: float = 0.95
+    # Absolute floors: a truncated download must fail even without a previous run to compare.
+    min_contract_rows: int = 5_000_000
+    min_amendment_rows: int = 7_000_000
 
 
 @dataclass(frozen=True)

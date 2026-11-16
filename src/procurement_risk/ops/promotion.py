@@ -67,7 +67,9 @@ def decide(comparison: dict, gate: PromotionGate | None = None) -> Decision:
         reasons.append(f"no target gains at least {g.min_pr_auc_gain} PR-AUC "
                        f"(best gain {best_gain:+.3f})")
     if ok:
-        reasons.append("challenger is at least as good on both targets and better on one")
+        reasons.append("challenger is within the allowed tolerance on both targets "
+                       f"(PR-AUC -{g.max_pr_auc_drop}, Brier +{g.max_brier_ratio - 1:.0%}) "
+                       f"and gains at least {g.min_pr_auc_gain} PR-AUC on one")
     return Decision(promote=ok, reasons=reasons)
 
 
