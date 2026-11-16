@@ -60,6 +60,8 @@ def _build_parser() -> argparse.ArgumentParser:
                       default=config.DATA_DIR / "processed" / "dataset.parquet")
     card.add_argument("--models", type=Path, default=config.DATA_DIR / "models")
     card.add_argument("--out", type=Path, default=Path("docs") / "model-card.md")
+    card.add_argument("--rolling-as-of", type=date.fromisoformat, default=None,
+                      help="Models were trained with the rolling split for this date.")
 
     export = commands.add_parser("export-bundle", help="Package models for the API.")
     export.add_argument("--raw", type=Path, default=config.DATA_DIR / "raw")
@@ -205,7 +207,10 @@ def _run_model_card(args: argparse.Namespace) -> None:
     if not results:
         print(f"error: no metrics.json under {args.models}; run `train` first", file=sys.stderr)
         raise SystemExit(2)
-    write_model_card(results, dataset_summary(args.dataset), args.out)
+    from procurement_risk.model.split import rolling_split_dates
+
+    dates = rolling_split_dates(args.rolling_as_of) if args.rolling_as_of else None
+    write_model_card(results, dataset_summary(args.dataset, split_dates=dates), args.out)
     print(f"wrote {args.out}")
 
 

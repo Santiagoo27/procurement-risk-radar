@@ -149,11 +149,14 @@ def run_experiment(
     return results
 
 
-def dataset_summary(dataset_path: Path) -> dict:
+def dataset_summary(dataset_path: Path, split_dates: tuple | None = None) -> dict:
     """Summary of the training dataset for the model card."""
+    from procurement_risk.model.split import TEST_END, TRAIN_END, VALID_END
+
+    dates = split_dates or (TRAIN_END, VALID_END, TEST_END)
     df = pd.read_parquet(dataset_path, columns=["signed_at", "has_value_addition",
                                                  "has_time_extension"])
-    splits = temporal_split(df)
+    splits = temporal_split(df, *dates)
     signed = pd.to_datetime(df["signed_at"])
     return {
         "n_rows": len(df),
@@ -163,4 +166,5 @@ def dataset_summary(dataset_path: Path) -> dict:
                           for t in ("has_value_addition", "has_time_extension")},
         "split_sizes": {"train": len(splits.train), "valid": len(splits.valid),
                         "test": len(splits.test)},
+        "split_dates": [d.isoformat() for d in dates],
     }

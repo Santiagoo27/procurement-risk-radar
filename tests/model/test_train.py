@@ -119,3 +119,19 @@ def test_registered_model_is_calibrated(synthetic, tmp_path):
     model = joblib.load(tmp_path / "models" / "has_value_addition" / "model.joblib")
     test = temporal_split(synthetic).test.head(50)
     assert np.allclose(np.asarray(served.predict(test)).ravel(), model.predict_proba(test))
+
+
+def test_dataset_summary_uses_given_split_dates(synthetic, tmp_path):
+    from datetime import date
+
+    from procurement_risk.model.train import dataset_summary
+
+    ds = tmp_path / "ds.parquet"
+    synthetic.to_parquet(ds)
+    dates = (date(2022, 1, 1), date(2022, 7, 1), date(2024, 1, 1))
+    summary = dataset_summary(ds, split_dates=dates)
+    assert summary["split_dates"] == ["2022-01-01", "2022-07-01", "2024-01-01"]
+    splits = temporal_split(synthetic, *dates)
+    assert summary["split_sizes"] == {"train": len(splits.train), "valid": len(splits.valid),
+                                      "test": len(splits.test)}
+    assert dataset_summary(ds)["split_dates"] == ["2023-01-01", "2023-07-01", "2025-01-01"]
