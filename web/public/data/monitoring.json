@@ -1,0 +1,264 @@
+{
+  "as_of": "2026-11-16",
+  "status": "watch",
+  "windows": {
+    "reference": [
+      null,
+      "2023-01-01"
+    ],
+    "current": [
+      "2026-08-18",
+      "2026-11-16"
+    ]
+  },
+  "n_reference": 200000,
+  "n_current": 248606,
+  "feature_drift": [
+    {
+      "feature": "planned_duration_days",
+      "label": "Planned duration",
+      "psi": 1.7411,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "supplier_prior_value_addition_rate",
+      "label": "Supplier's past value-addition rate",
+      "psi": 0.6983,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "buyer_prior_value_addition_rate",
+      "label": "Buyer's past value-addition rate",
+      "psi": 0.4074,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "buyer_department",
+      "label": "Buyer's department",
+      "psi": 0.403,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "days_signing_to_start",
+      "label": "Days from signing to planned start",
+      "psi": 0.3927,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "supplier_prior_extension_rate",
+      "label": "Supplier's past extension rate",
+      "psi": 0.3403,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "log_tender_budget",
+      "label": "Tender budget",
+      "psi": 0.3167,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "buyer_sector",
+      "label": "Buyer's sector",
+      "psi": 0.315,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "buyer_prior_extension_rate",
+      "label": "Buyer's past extension rate",
+      "psi": 0.2628,
+      "expected": false,
+      "shifted": true
+    },
+    {
+      "feature": "buyer_order",
+      "label": "Buyer's government level",
+      "psi": 0.1894,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "days_publication_to_signing",
+      "label": "Days from tender publication to signing",
+      "psi": 0.0583,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "category_segment",
+      "label": "Product/service category",
+      "psi": 0.028,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "procurement_method",
+      "label": "Procurement method",
+      "psi": 0.0147,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "buyer_branch",
+      "label": "Buyer's branch of government",
+      "psi": 0.0089,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "contract_type",
+      "label": "Contract type",
+      "psi": 0.0077,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "award_to_budget_ratio",
+      "label": "Awarded value vs. budget",
+      "psi": 0.0073,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "log_award_value",
+      "label": "Awarded value",
+      "psi": 0.0063,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "n_bidders",
+      "label": "Number of bidders",
+      "psi": 0.005,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "n_responses",
+      "label": "Number of responses",
+      "psi": 0.005,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "funding_source",
+      "label": "Funding source",
+      "psi": 0.0018,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "buyer_centralized",
+      "label": "Buyer is centralized",
+      "psi": 0.0017,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "single_bidder",
+      "label": "Single bidder",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "n_invited",
+      "label": "Number of invited suppliers",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "n_lots",
+      "label": "Number of lots",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "supplier_is_natural_person",
+      "label": "Supplier is a natural person",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "supplier_is_sme",
+      "label": "Supplier is an SME",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "supplier_is_group",
+      "label": "Supplier is a consortium",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "advance_payment_enabled",
+      "label": "Advance payment enabled",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "extendable_clause",
+      "label": "Contract allows extensions",
+      "psi": 0.0,
+      "expected": false,
+      "shifted": false
+    },
+    {
+      "feature": "signing_month",
+      "label": "Signing month",
+      "psi": 5.3564,
+      "expected": true,
+      "shifted": false
+    },
+    {
+      "feature": "buyer_prior_n",
+      "label": "Buyer's number of past contracts",
+      "psi": 1.9207,
+      "expected": true,
+      "shifted": false
+    },
+    {
+      "feature": "supplier_prior_n",
+      "label": "Supplier's number of past contracts",
+      "psi": 1.1434,
+      "expected": true,
+      "shifted": false
+    },
+    {
+      "feature": "signed_in_december",
+      "label": "Signed in December",
+      "psi": 0.0,
+      "expected": true,
+      "shifted": false
+    }
+  ],
+  "score_shift": {
+    "reference_mean": 0.1412,
+    "current_mean": 0.0738,
+    "reference_p90": 0.3166,
+    "current_p90": 0.1605
+  },
+  "realized": {
+    "pr_auc": 0.2654,
+    "roc_auc": 0.7567,
+    "n": 1040749,
+    "test_pr_auc": 0.24332428838784617,
+    "test_roc_auc": 0.7582218262156946,
+    "positive_rate": 0.0914,
+    "reason": null
+  }
+}

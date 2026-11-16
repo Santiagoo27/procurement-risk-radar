@@ -1,0 +1,10 @@
+{
+  "since": "2026-11-14",
+  "n_contracts_observed": 5710920,
+  "n_increased": 2485,
+  "median_increase_pct": 0.2333,
+  "p75_increase_pct": 0.375,
+  "p90_increase_pct": 0.4947,
+  "share_over_30pct": 0.427,
+  "reason": null
+}

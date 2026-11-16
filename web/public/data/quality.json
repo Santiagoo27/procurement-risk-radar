@@ -1,0 +1,66 @@
+{
+  "run_date": "2026-11-16",
+  "passed": true,
+  "counts": {
+    "contracts": 5484292,
+    "amendments": 8516931,
+    "processes": 8721039
+  },
+  "checks": [
+    {
+      "name": "contracts not empty",
+      "passed": true,
+      "detail": "5,484,292 rows"
+    },
+    {
+      "name": "amendments not empty",
+      "passed": true,
+      "detail": "8,516,931 rows"
+    },
+    {
+      "name": "processes not empty",
+      "passed": true,
+      "detail": "8,721,039 rows"
+    },
+    {
+      "name": "contracts row count",
+      "passed": true,
+      "detail": "5,484,292 rows (minimum 5,000,000)"
+    },
+    {
+      "name": "amendments row count",
+      "passed": true,
+      "detail": "8,516,931 rows (minimum 7,000,000)"
+    },
+    {
+      "name": "processes row count",
+      "passed": true,
+      "detail": "8,721,039 rows (minimum 1,000,000)"
+    },
+    {
+      "name": "contracts are recent",
+      "passed": true,
+      "detail": "latest signing date 2026-11-14 (cutoff 2026-11-02)"
+    },
+    {
+      "name": "contracts.id_contrato nulls",
+      "passed": true,
+      "detail": "0.0% null (maximum 5%)"
+    },
+    {
+      "name": "contracts.fecha_de_firma nulls",
+      "passed": true,
+      "detail": "0.0% null (maximum 5%)"
+    },
+    {
+      "name": "contracts.codigo_entidad nulls",
+      "passed": true,
+      "detail": "0.0% null (maximum 5%)"
+    },
+    {
+      "name": "contracts.valor_del_contrato nulls",
+      "passed": true,
+      "detail": "0.0% null (maximum 5%)"
+    }
+  ]
+}
