@@ -174,7 +174,15 @@ def export_bundle(raw_dir: Path, dataset_path: Path, models_dir: Path, out_dir: 
     window = {}
     if split_dates:
         window = {"train_end": split_dates[0].isoformat(), "data_end": split_dates[2].isoformat()}
+    # The monthly retrain may keep the production model for one target (source.json).
+    sources = {t: json.loads(p.read_text(encoding="utf-8")) for t in TARGETS
+               if (p := Path(models_dir) / t / "source.json").exists()}
+    if sources and "data_end" in window:
+        # Realized performance must use contracts that no model in the bundle has seen.
+        window["data_end"] = max([window["data_end"], *(s["data_end"] for s in sources.values())])
     meta = _metadata(as_of.isoformat(), as_of.isoformat(), rates, metrics, quantiles, **window)
+    if sources:
+        meta["model_sources"] = sources
     return _write(out_dir, models, buyers, meta)
 
 

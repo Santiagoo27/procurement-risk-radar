@@ -87,6 +87,16 @@ def train_lightgbm(splits: Splits, target: str, params: dict | None = None) -> R
     return RiskModel(booster, calibrator, categories)
 
 
+def baseline_scores(splits: Splits, target: str) -> dict[str, np.ndarray]:
+    """Test-set scores of the simple baselines, fitted on the training split."""
+    scores = {}
+    for name, baseline in (("base_rate", BaseRate()), ("buyer_rate", BuyerRate()),
+                           ("logistic", LogisticBaseline())):
+        baseline.fit(splits.train, target)
+        scores[name] = baseline.predict_proba(splits.test)
+    return scores
+
+
 def run_experiment(
     dataset_path: Path,
     target: str,
@@ -108,11 +118,8 @@ def run_experiment(
                    "n_test": len(splits.test)}
 
     results: dict[str, dict[str, float]] = {}
-    scores: dict[str, np.ndarray] = {}
-    for name, baseline in (("base_rate", BaseRate()), ("buyer_rate", BuyerRate()),
-                           ("logistic", LogisticBaseline())):
-        baseline.fit(splits.train, target)
-        scores[name] = baseline.predict_proba(splits.test)
+    scores = baseline_scores(splits, target)
+    for name in scores:
         results[name] = evaluate(y_test, scores[name])
         with mlflow.start_run(run_name=name):
             mlflow.log_params({"model": name, "target": target, **split_sizes})

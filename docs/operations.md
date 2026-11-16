@@ -8,7 +8,7 @@ with it. Only the privacy-safe exports are published.
 |---|---|---|
 | [`snapshot.yml`](../.github/workflows/snapshot.yml) | Every night, 07:00 UTC | Archives every contract whose value or end date changed, as assets of the `snapshots` release. A full baseline is taken on the 1st of each month. |
 | [`weekly-refresh.yml`](../.github/workflows/weekly-refresh.yml) | Sundays, 09:00 UTC | Downloads SECOP and checks data quality. Then it rescores open contracts with the production model, updates `monitoring.json` and `amendment-size.json`, and commits `web/public/data` when it changed. Vercel redeploys the site. |
-| [`monthly-retrain.yml`](../.github/workflows/monthly-retrain.yml) | 1st of the month, 06:00 UTC | Downloads SECOP, checks quality and retrains both models on a rolling split. It compares them with the production models **on the same test rows**. If they pass the promotion gate, it publishes a draft release and opens a pull request. |
+| [`monthly-retrain.yml`](../.github/workflows/monthly-retrain.yml) | 1st of the month, 06:00 UTC | Downloads SECOP, checks quality and retrains both models on a rolling split. It compares them with the production models **on the same test rows** and decides each target on its own. If at least one improved, it publishes a draft release and opens a pull request. |
 
 The production model is whatever `ARG BUNDLE_TAG` in [`Dockerfile.render`](../Dockerfile.render)
 points to. The API, the weekly refresh and the website all use that bundle.
@@ -20,14 +20,17 @@ When the monthly retrain finds a better model, you receive a pull request titled
 
 - a table comparing the current and the new model on each target (PR-AUC, ROC-AUC, Brier,
   precision in the top 5%), on the same contracts;
-- the decision and its reasons;
+- the decision for each target (promote or keep current) and its reasons;
 - a link to a **draft** release with the new bundle.
+
+The bundle can mix models. If only the value-addition model improved, the new bundle has the
+new value-addition model and the current time-extension model. `metadata.json` →
+`model_sources` and the model card say which one was kept and from which release.
 
 To approve:
 
-1. Read the comparison. The gate already required the new model to be within a small
-   tolerance on both targets (PR-AUC at most 0.005 lower, Brier at most 2% higher) and to
-   improve PR-AUC by at least 0.002 on one of them.
+1. Read the comparison. The gate already required each promoted model to improve PR-AUC by at
+   least 0.002 and keep its Brier score within 2% of the current one.
 2. Open the draft release (Releases → `model-YYYY-MM-DD` → Edit) and click **Publish
    release**. Render cannot download a draft.
 3. Update the results table in `README.md` from the new `docs/model-card.md`, if you want the
@@ -45,8 +48,15 @@ Approve or close the open one first.
 To reject, close the pull request and delete the draft release.
 
 The promotion gate lives in [`src/procurement_risk/ops/config.py`](../src/procurement_risk/ops/config.py).
-For **both** targets, PR-AUC may not drop by more than 0.005 and the Brier score may not
-worsen by more than 2%. For **at least one** target, PR-AUC must improve by at least 0.002.
+It is applied to **each target on its own**: the new model replaces the production one only
+if PR-AUC improves by at least 0.002 and the Brier score worsens by at most 2%. Otherwise that
+target keeps its production model.
+
+Why per target: on 2026-11-16 the new value-addition model was clearly better (PR-AUC
++0.022), but the new time-extension model was worse (−0.041). Contracts signed in 2023-H1,
+which entered training for the first time, carry an unusual wave of time extensions in
+territorial service contracts that did not repeat in 2024. An all-or-nothing gate would have
+thrown away the better value-addition model.
 
 ## When a pipeline fails
 

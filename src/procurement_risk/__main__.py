@@ -212,7 +212,12 @@ def _run_model_card(args: argparse.Namespace) -> None:
     from procurement_risk.model.split import rolling_split_dates
 
     dates = rolling_split_dates(args.rolling_as_of) if args.rolling_as_of else None
-    write_model_card(results, dataset_summary(args.dataset, split_dates=dates), args.out)
+    sources = {
+        target: json.loads((args.models / target / "source.json").read_text(encoding="utf-8"))
+        for target in results if (args.models / target / "source.json").exists()
+    }
+    write_model_card(results, dataset_summary(args.dataset, split_dates=dates), args.out,
+                     sources=sources)
     print(f"wrote {args.out}")
 
 

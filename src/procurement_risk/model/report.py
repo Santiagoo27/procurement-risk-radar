@@ -83,7 +83,9 @@ def _metrics_table(results: dict[str, dict[str, float]]) -> list[str]:
 
 
 def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summary: dict,
-                     out_path: Path) -> None:
+                     out_path: Path, sources: dict[str, dict] | None = None) -> None:
+    """`sources`: per target, the source.json of a monthly retrain (kept or retrained)."""
+    sources = sources or {}
     rates = summary["positive_rate"]
     sizes = summary["split_sizes"]
     dates = summary.get("split_dates", ["2023-01-01", "2023-07-01", "2025-01-01"])
@@ -138,7 +140,17 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         "",
     ]
     for target, results in all_results.items():
-        lines += [f"### `{target}`", "", *_metrics_table(results), "",
+        lines += [f"### `{target}`", ""]
+        source = sources.get(target, {})
+        if source.get("source") == "kept":
+            lines += [
+                f"The production model was kept from `{source.get('bundle_version')}` "
+                f"(trained on contracts signed before {source.get('train_end')}): the monthly "
+                "retrain did not beat it for this target. Its scores below are on this test "
+                "split; the baselines are fitted on this split's training rows.",
+                "",
+            ]
+        lines += [*_metrics_table(results), "",
                   f"![Precision-recall](figures/{target}-pr-curves.png)",
                   f"![Calibration](figures/{target}-calibration.png)",
                   f"![Top features](figures/{target}-importance.png)", ""]

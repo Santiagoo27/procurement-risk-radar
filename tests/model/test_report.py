@@ -53,3 +53,13 @@ def test_model_card_uses_split_dates_from_summary(tmp_path):
                                                           "2025-11-14"]}, out)
     text = out.read_text(encoding="utf-8")
     assert "train before 2023-11-14" in text and "2024-05-14 to 2025-11-14" in text
+
+
+def test_model_card_says_which_model_was_kept(tmp_path):
+    out = tmp_path / "card.md"
+    sources = {"has_value_addition": {"source": "kept", "bundle_version": "model-2026-11-14",
+                                      "train_end": "2023-01-01", "data_end": "2025-01-01"}}
+    write_model_card(RESULTS, SUMMARY, out, sources=sources)
+    text = out.read_text(encoding="utf-8")
+    assert "kept from `model-2026-11-14`" in text
+    assert "signed before 2023-01-01" in text

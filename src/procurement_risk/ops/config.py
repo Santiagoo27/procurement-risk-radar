@@ -18,7 +18,8 @@ class QualityThresholds:
 
 @dataclass(frozen=True)
 class PromotionGate:
-    max_pr_auc_drop: float = 0.005
+    """Applied to each target on its own: a target's new model replaces the production one
+    only if it gains PR-AUC and keeps calibration. Otherwise that target keeps its model."""
     max_brier_ratio: float = 1.02
     min_pr_auc_gain: float = 0.002
 

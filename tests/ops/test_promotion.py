@@ -61,26 +61,29 @@ def comparison(ch_va, ch_ext):
     }
 
 
-def test_gate_rejects_worse_challenger():
-    d = decide(comparison(metrics(0.20, 0.067), metrics(0.33, 0.089)))
-    assert not d.promote
-    assert any("has_value_addition" in r for r in d.reasons)
+def test_gate_decides_each_target_on_its_own():
+    d = decide(comparison(metrics(0.26, 0.066), metrics(0.28, 0.095)))
+    assert d.promote
+    assert d.targets == {"has_value_addition": True, "has_time_extension": False}
+    assert any("has_time_extension" in r and "keep" in r for r in d.reasons)
 
 
-def test_gate_rejects_worse_calibration():
+def test_gate_keeps_a_target_with_worse_calibration():
     d = decide(comparison(metrics(0.25, 0.080), metrics(0.33, 0.089)))
-    assert not d.promote
+    assert d.targets == {"has_value_addition": False, "has_time_extension": True}
 
 
 def test_gate_requires_some_gain():
     d = decide(comparison(metrics(0.2405, 0.067), metrics(0.3205, 0.089)))
     assert not d.promote
+    assert d.targets == {"has_value_addition": False, "has_time_extension": False}
     assert any("gain" in r for r in d.reasons)
 
 
 def test_gate_promotes_better_challenger():
     d = decide(comparison(metrics(0.25, 0.066), metrics(0.322, 0.089)))
     assert d.promote
+    assert all(d.targets.values())
 
 
 def test_report_contains_both_targets_and_decision(tmp_path):
@@ -90,6 +93,7 @@ def test_report_contains_both_targets_and_decision(tmp_path):
     text = path.read_text(encoding="utf-8")
     assert "has_value_addition" in text and "has_time_extension" in text
     assert "Promote" in text
+    assert "| `has_value_addition` | promote |" in text
     assert "0.240" in text and "0.250" in text
 
 
@@ -110,3 +114,57 @@ def test_retrain_writes_report_decision_and_models(tmp_path):
     for target in TARGETS:
         assert (out / "models" / target / "model.joblib").exists()
         assert (out / "models" / target / "metrics.json").exists()
+
+
+def test_retrain_keeps_the_champion_for_a_target_that_did_not_improve(tmp_path, monkeypatch):
+    import json
+
+    import joblib
+    import pandas as pd
+
+    from procurement_risk.ops.promotion import Decision, retrain
+
+    def mixed(comp, gate=None):
+        return Decision(promote=True, targets={"has_value_addition": True,
+                                               "has_time_extension": False},
+                        reasons=["mixed"])
+
+    monkeypatch.setattr(promotion, "decide", mixed)
+    dataset = tmp_path / "ds.parquet"
+    synthetic_dataset(n=3000, seed=2).to_parquet(dataset)
+    bundle = make_demo_bundle(tmp_path / "bundle", seed=0)
+    champion = load_bundle(bundle)
+    out = tmp_path / "retrain"
+    retrain(dataset, bundle, AS_OF, out, params=FAST)
+
+    final = out / "final_models"
+    df = pd.read_parquet(dataset)
+    kept = joblib.load(final / "has_time_extension" / "model.joblib")
+    assert np.allclose(kept.predict_raw(df),
+                       champion.models["has_time_extension"].predict_raw(df))
+    new = joblib.load(final / "has_value_addition" / "model.joblib")
+    challenger = joblib.load(out / "models" / "has_value_addition" / "model.joblib")
+    assert np.allclose(new.predict_raw(df), challenger.predict_raw(df))
+
+    saved = json.loads((out / "decision.json").read_text(encoding="utf-8"))
+    assert saved["targets"] == {"has_value_addition": True, "has_time_extension": False}
+    ext_metrics = json.loads((final / "has_time_extension" / "metrics.json")
+                             .read_text(encoding="utf-8"))
+    assert ext_metrics["lightgbm"] == saved["comparison"]["has_time_extension"]["champion"]
+    assert "logistic" in ext_metrics
+    sources = {t: json.loads((final / t / "source.json").read_text(encoding="utf-8"))
+               for t in TARGETS}
+    assert sources["has_value_addition"]["source"] == "retrained"
+    assert sources["has_value_addition"]["data_end"] == "2024-06-30"
+    assert sources["has_time_extension"] == {
+        "source": "kept", "bundle_version": "demo", "train_end": "2023-01-01",
+        "data_end": "2025-01-01"}
+    for target in TARGETS:
+        assert (out / "figures" / f"{target}-pr-curves.png").exists()
+
+    from procurement_risk import __main__ as cli
+
+    card = tmp_path / "card.md"
+    cli.main(["model-card", "--dataset", str(dataset), "--models", str(final),
+              "--out", str(card), "--rolling-as-of", AS_OF.isoformat()])
+    assert "kept from `demo`" in card.read_text(encoding="utf-8")

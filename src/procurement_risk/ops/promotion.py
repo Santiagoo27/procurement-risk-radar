@@ -41,41 +41,48 @@ def compare(dataset: pd.DataFrame, champion: Bundle, challengers: dict[str, Risk
 @dataclass
 class Decision:
     promote: bool
+    targets: dict[str, bool] = field(default_factory=dict)
     reasons: list[str] = field(default_factory=list)
 
 
 def decide(comparison: dict, gate: PromotionGate | None = None) -> Decision:
+    """Each target on its own: its new model replaces the production one only if it gains
+    PR-AUC and keeps calibration. A target that does not improve keeps its current model, so
+    a bad retrain for one target never blocks a good one for the other."""
     from procurement_risk.ops import config
 
     g = gate or config.GATE
+    targets: dict[str, bool] = {}
     reasons: list[str] = []
-    ok = True
-    best_gain = float("-inf")
     for target, row in comparison.items():
         champ, chall = row["champion"], row["challenger"]
         gain = chall["pr_auc"] - champ["pr_auc"]
-        best_gain = max(best_gain, gain)
-        if gain < -g.max_pr_auc_drop:
-            ok = False
-            reasons.append(f"{target}: PR-AUC fell by {-gain:.3f} (allowed {g.max_pr_auc_drop})")
+        problems = []
+        if gain < g.min_pr_auc_gain:
+            problems.append(f"PR-AUC gain {gain:+.3f} is below {g.min_pr_auc_gain}")
         if chall["brier"] > champ["brier"] * g.max_brier_ratio:
-            ok = False
-            reasons.append(f"{target}: Brier score worsened from {champ['brier']:.4f} to "
-                           f"{chall['brier']:.4f}")
-    if best_gain < g.min_pr_auc_gain:
-        ok = False
-        reasons.append(f"no target gains at least {g.min_pr_auc_gain} PR-AUC "
-                       f"(best gain {best_gain:+.3f})")
-    if ok:
-        reasons.append("challenger is within the allowed tolerance on both targets "
-                       f"(PR-AUC -{g.max_pr_auc_drop}, Brier +{g.max_brier_ratio - 1:.0%}) "
-                       f"and gains at least {g.min_pr_auc_gain} PR-AUC on one")
-    return Decision(promote=ok, reasons=reasons)
+            problems.append(f"Brier score worsened from {champ['brier']:.4f} to "
+                            f"{chall['brier']:.4f} (allowed +{g.max_brier_ratio - 1:.0%})")
+        targets[target] = not problems
+        if problems:
+            reasons.append(f"{target}: keep the current model; " + "; ".join(problems))
+        else:
+            reasons.append(f"{target}: promote; PR-AUC {gain:+.3f}, Brier "
+                           f"{champ['brier']:.4f} to {chall['brier']:.4f}")
+    return Decision(promote=any(targets.values()), targets=targets, reasons=reasons)
 
 
 def write_report(comparison: dict, decision: Decision, path: Path) -> None:
-    verdict = "Promote the new model" if decision.promote else "Keep the current model"
-    lines = [f"## Monthly retrain: {verdict}", ""]
+    if not decision.promote:
+        verdict = "Keep the current models"
+    elif all(decision.targets.values()):
+        verdict = "Promote the new models"
+    else:
+        verdict = "Promote some of the new models"
+    lines = [f"## Monthly retrain: {verdict}", "",
+             "| Target | Decision |", "|---|---|",
+             *[f"| `{t}` | {'promote' if ok else 'keep current'} |"
+               for t, ok in decision.targets.items()], ""]
     for target, row in comparison.items():
         lines += [
             f"### `{target}`",
@@ -125,12 +132,64 @@ def retrain(dataset_path: Path, bundle_dir: Path, as_of: date, out_dir: Path,
                        figures_dir=out_dir / "figures", split_dates=dates)
         challengers[target] = joblib.load(out_dir / "models" / target / "model.joblib")
 
-    comparison = compare(pd.read_parquet(dataset_path), load_bundle(bundle_dir), challengers,
-                         as_of)
+    dataset = pd.read_parquet(dataset_path)
+    champion = load_bundle(bundle_dir)
+    comparison = compare(dataset, champion, challengers, as_of)
     decision = decide(comparison)
     write_report(comparison, decision, out_dir / "report.md")
     (out_dir / "decision.json").write_text(json.dumps({
-        "as_of": as_of.isoformat(), "promote": decision.promote, "reasons": decision.reasons,
-        "split_dates": [d.isoformat() for d in dates], "comparison": comparison,
+        "as_of": as_of.isoformat(), "promote": decision.promote, "targets": decision.targets,
+        "reasons": decision.reasons, "split_dates": [d.isoformat() for d in dates],
+        "comparison": comparison,
     }, indent=2), encoding="utf-8")
+    if decision.promote:  # nothing ships otherwise, so skip redrawing kept models' figures
+        _assemble_final_models(out_dir, dataset, champion, comparison, decision, dates)
     return decision
+
+
+def _assemble_final_models(out_dir: Path, dataset: pd.DataFrame, champion: Bundle,
+                           comparison: dict, decision: Decision, dates: tuple) -> None:
+    """Write `final_models/<target>/` with the model each target will ship: the new one if it
+    was promoted, otherwise the production one. Each gets the metrics.json the model card and
+    bundle read, and a source.json recording where it came from. For a kept model the metrics
+    are its scores on this retrain's test rows (baselines refit on this split) and its
+    figures are redrawn on those rows, so the card describes the model that ships."""
+    import json
+    import shutil
+
+    import joblib
+
+    from procurement_risk.model.report import write_figures
+    from procurement_risk.model.train import baseline_scores
+
+    final = out_dir / "final_models"
+    if final.exists():
+        shutil.rmtree(final)
+    train_end, _, test_end = dates
+    meta = champion.metadata
+    for target, promoted in decision.targets.items():
+        dest = final / target
+        dest.mkdir(parents=True)
+        if promoted:
+            shutil.copytree(out_dir / "models" / target, dest, dirs_exist_ok=True)
+            source = {"source": "retrained", "train_end": train_end.isoformat(),
+                      "data_end": test_end.isoformat()}
+        else:
+            joblib.dump(champion.models[target], dest / "model.joblib")
+            metrics = json.loads((out_dir / "models" / target / "metrics.json")
+                                 .read_text(encoding="utf-8"))
+            metrics["lightgbm"] = comparison[target]["champion"]
+            (dest / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+            # A model kept through several months keeps its original training window.
+            earlier = meta.get("model_sources", {}).get(target, {})
+            source = {"source": "kept",
+                      "bundle_version": earlier.get("bundle_version",
+                                                    meta.get("bundle_version")),
+                      "train_end": earlier.get("train_end", meta.get("train_end", "2023-01-01")),
+                      "data_end": earlier.get("data_end", meta.get("data_end", "2025-01-01"))}
+            splits = temporal_split(dataset, *dates)
+            model = champion.models[target]
+            scores = {**baseline_scores(splits, target), "lightgbm": model.predict_raw(splits.test)}
+            write_figures(scores, splits.test[target].astype(int).to_numpy(), model, splits.test,
+                          target, out_dir / "figures")
+        (dest / "source.json").write_text(json.dumps(source, indent=2), encoding="utf-8")

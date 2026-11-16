@@ -130,3 +130,31 @@ def test_bundle_records_training_window(demo):
     meta = json.loads((demo / "metadata.json").read_text(encoding="utf-8"))
     assert meta["train_end"] == "2023-01-01"
     assert meta["data_end"] == "2025-01-01"
+
+
+def test_export_records_where_each_model_came_from(make_raw, demo, tmp_path):
+    raw = make_raw(contracts=[
+        contract("1", "E1", "2019-01-01T00:00:00", "2019-06-01T00:00:00"),
+        contract("2", "E1", "2024-01-01T00:00:00", "2024-06-01T00:00:00"),
+    ])
+    dataset = tmp_path / "ds.parquet"
+    build_dataset(raw, dataset, date(2026, 11, 14))
+    models = tmp_path / "models"
+    sources = {
+        "has_value_addition": {"source": "retrained", "train_end": "2023-11-16",
+                               "data_end": "2025-11-16"},
+        "has_time_extension": {"source": "kept", "bundle_version": "model-2026-11-14",
+                               "train_end": "2023-01-01", "data_end": "2025-01-01"},
+    }
+    for target, source in sources.items():
+        (models / target).mkdir(parents=True)
+        shutil.copy(demo / "models" / f"{target}.joblib", models / target / "model.joblib")
+        (models / target / "metrics.json").write_text("{}", encoding="utf-8")
+        (models / target / "source.json").write_text(json.dumps(source), encoding="utf-8")
+    dates = (date(2023, 11, 16), date(2024, 5, 16), date(2025, 11, 16))
+    meta = load_bundle(export_bundle(raw, dataset, models, tmp_path / "bundle",
+                                     date(2026, 11, 16), dates)).metadata
+    assert meta["model_sources"] == sources
+    assert meta["train_end"] == "2023-11-16"
+    # realized performance must use contracts that no model in the bundle has seen
+    assert meta["data_end"] == "2025-11-16"

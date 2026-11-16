@@ -1,9 +1,10 @@
 name: Monthly retrain
 
 # On the 1st of each month: retrain both models on a rolling temporal split and compare them
-# with the production models on the same test rows. If the new models pass the promotion
-# gate, publish a DRAFT release with the new bundle and open a pull request. Nothing reaches
-# production until the owner publishes the release and merges the PR.
+# with the production models on the same test rows. The gate decides each target on its own;
+# a target that did not improve keeps its production model inside the new bundle. If at least
+# one target improved, publish a DRAFT release with the new bundle and open a pull request.
+# Nothing reaches production until the owner publishes the release and merges the PR.
 on:
   schedule:
     - cron: "0 6 1 * *"
@@ -99,7 +100,7 @@ jobs:
             exit 0
           fi
           uv run python -m procurement_risk export-bundle --raw data/raw \
-            --dataset data/retrain/dataset.parquet --models data/retrain/models \
+            --dataset data/retrain/dataset.parquet --models data/retrain/final_models \
             --out data/new_bundle --as-of "$AS_OF" --rolling-split
           rm -rf serving_bundle && mv data/new_bundle serving_bundle
           tar --owner=0 --group=0 -czf serving_bundle.tar.gz serving_bundle
@@ -113,7 +114,7 @@ jobs:
           sed -i "s/^ARG BUNDLE_TAG=.*/ARG BUNDLE_TAG=$TAG/" Dockerfile.render
           cp data/retrain/figures/*.png docs/figures/
           uv run python -m procurement_risk model-card --dataset data/retrain/dataset.parquet \
-            --models data/retrain/models --out docs/model-card.md --rolling-as-of "$AS_OF"
+            --models data/retrain/final_models --out docs/model-card.md --rolling-as-of "$AS_OF"
           git add Dockerfile.render docs/model-card.md docs/figures
           git commit -m "model: promote $AS_OF"
           git push --force -u origin "$BRANCH"
