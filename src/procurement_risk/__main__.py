@@ -216,8 +216,14 @@ def _run_model_card(args: argparse.Namespace) -> None:
         target: json.loads((args.models / target / "source.json").read_text(encoding="utf-8"))
         for target in results if (args.models / target / "source.json").exists()
     }
+    import joblib
+
+    model_features = {
+        target: list(joblib.load(args.models / target / "model.joblib").feature_names)
+        for target in results if (args.models / target / "model.joblib").exists()
+    }
     write_model_card(results, dataset_summary(args.dataset, split_dates=dates), args.out,
-                     sources=sources)
+                     sources=sources, model_features=model_features)
     print(f"wrote {args.out}")
 
 

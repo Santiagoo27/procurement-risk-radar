@@ -39,11 +39,12 @@ export default function Methodology() {
           value and tender budget, the planned duration, the number of bidders, and the buyer's
           and supplier's track record up to that day.
         </p>
-        {summary?.model_features?.includes("planned_end_in_restriction") && <p>
-          The model also knows whether the contract is signed, or is planned to end, in the four
-          months before an election. Colombian law (Ley 996 de 2005) restricts public contracting
-          in that window, and contracts ending inside it are extended more often. This describes
-          a pattern in the data, not the reason for any particular amendment.
+        {electionModels(summary) && <p>
+          {electionModels(summary)} also knows whether the contract is signed, or is planned to
+          end, in the four months before an election. Colombian law (Ley 996 de 2005) restricts
+          some kinds of public contracting in that window, and contracts ending inside it are
+          extended more often. This describes a pattern in the data, not the reason for any
+          particular amendment.
         </p>}
       </Section>
 
@@ -190,6 +191,18 @@ function ModelHealth({ monitoring: m }: { monitoring: Monitoring }) {
       </p>
     </div>
   );
+}
+
+/** Which production models use the election-calendar features, as a sentence subject. */
+function electionModels(summary: Summary | null): string | null {
+  const uses = (target: string) =>
+    summary?.model_features_by_target?.[target]?.includes("planned_end_in_restriction") ?? false;
+  const va = uses("has_value_addition");
+  const ext = uses("has_time_extension");
+  if (va && ext) return "The model";
+  if (ext) return "The time-extension model";
+  if (va) return "The value-addition model";
+  return null;
 }
 
 function MetricsTable({ summary }: { summary: Summary }) {

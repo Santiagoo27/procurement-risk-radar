@@ -245,6 +245,8 @@ def export_web_data(raw_dirs: list[Path], bundle_dir: Path, topo_path: Path, out
         "model_metrics": bundle.metadata["metrics"],
         "bundle_version": bundle.metadata["bundle_version"],
         "model_features": bundle.metadata["features"],
+        "model_features_by_target": {t: list(m.feature_names)
+                                     for t, m in bundle.models.items()},
         "coverage": {k: v for k, v in cov.items() if k != "unmatched_top"},
     }
     sizes["summary.json"] = _write(out_dir / "summary.json", summary)

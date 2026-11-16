@@ -183,7 +183,10 @@ def test_summary_lists_the_features_the_production_models_use(setup):
     from procurement_risk.serving.bundle import FEATURES
 
     _, _, out, _ = setup
-    assert read(out / "summary.json")["model_features"] == FEATURES
+    summary = read(out / "summary.json")
+    assert summary["model_features"] == FEATURES
+    assert summary["model_features_by_target"] == {
+        "has_value_addition": FEATURES, "has_time_extension": FEATURES}
 
 
 def test_zero_value_contracts_are_not_listed(setup):

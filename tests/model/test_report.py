@@ -63,3 +63,15 @@ def test_model_card_says_which_model_was_kept(tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "kept from `model-2026-11-14`" in text
     assert "signed before 2023-01-01" in text
+
+
+def test_model_card_names_features_a_model_does_not_use(tmp_path):
+    from procurement_risk.model.train import FEATURES
+
+    out = tmp_path / "card.md"
+    older = [f for f in FEATURES if f not in ("signed_in_restriction",
+                                              "planned_end_in_restriction",
+                                              "days_end_to_next_election")]
+    write_model_card(RESULTS, SUMMARY, out, model_features={"has_value_addition": older})
+    text = out.read_text(encoding="utf-8")
+    assert "does not use: `signed_in_restriction`, `planned_end_in_restriction`" in text

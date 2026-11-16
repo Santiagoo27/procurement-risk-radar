@@ -83,9 +83,12 @@ def _metrics_table(results: dict[str, dict[str, float]]) -> list[str]:
 
 
 def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summary: dict,
-                     out_path: Path, sources: dict[str, dict] | None = None) -> None:
-    """`sources`: per target, the source.json of a monthly retrain (kept or retrained)."""
+                     out_path: Path, sources: dict[str, dict] | None = None,
+                     model_features: dict[str, list[str]] | None = None) -> None:
+    """`sources`: per target, the source.json of a monthly retrain (kept or retrained).
+    `model_features`: per target, the features that target's model was trained with."""
     sources = sources or {}
+    model_features = model_features or {}
     rates = summary["positive_rate"]
     sizes = summary["split_sizes"]
     dates = summary.get("split_dates", ["2023-01-01", "2023-07-01", "2025-01-01"])
@@ -154,6 +157,12 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
                 "split; the baselines are fitted on this split's training rows.",
                 "",
             ]
+        used = model_features.get(target)
+        missing = [f for f in (*CATEGORICAL_FEATURES, *NUMERIC_FEATURES)
+                   if used is not None and f not in used]
+        if missing:
+            lines += ["This model was trained before some features existed. It does not use: "
+                      + ", ".join(f"`{f}`" for f in missing) + ".", ""]
         lines += [*_metrics_table(results), "",
                   f"![Precision-recall](figures/{target}-pr-curves.png)",
                   f"![Calibration](figures/{target}-calibration.png)",
