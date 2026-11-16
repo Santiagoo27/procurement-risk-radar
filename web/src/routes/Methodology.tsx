@@ -39,6 +39,12 @@ export default function Methodology() {
           value and tender budget, the planned duration, the number of bidders, and the buyer's
           and supplier's track record up to that day.
         </p>
+        {summary?.model_features?.includes("planned_end_in_restriction") && <p>
+          The model also knows whether the contract is signed, or is planned to end, in the four
+          months before an election. Colombian law (Ley 996 de 2005) restricts public contracting
+          in that window, and contracts ending inside it are extended more often. This describes
+          a pattern in the data, not the reason for any particular amendment.
+        </p>}
       </Section>
 
       <Section title="Data">

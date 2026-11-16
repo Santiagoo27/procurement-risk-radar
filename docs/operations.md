@@ -58,6 +58,15 @@ which entered training for the first time, carry an unusual wave of time extensi
 territorial service contracts that did not repeat in 2024. An all-or-nothing gate would have
 thrown away the better value-addition model.
 
+### Election-calendar features and the first retrain after them
+
+Since 2026-11-16 the models also get three election-calendar features
+([`features/elections.py`](../src/procurement_risk/features/elections.py)). Each model
+carries its own feature list, so the first monthly retrain afterwards compares the
+production models (without these features) with new ones (with them) on the same rows, and
+the per-target gate decides as usual. Election days follow the legal calendar up to 2040;
+`test_calendar_covers_the_next_year` fails a year before that runs out.
+
 ## When a pipeline fails
 
 Any failure opens an issue labelled `pipeline`, titled "Weekly refresh failed" or "Monthly

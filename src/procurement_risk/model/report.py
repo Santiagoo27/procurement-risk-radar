@@ -128,6 +128,10 @@ def write_model_card(all_results: dict[str, dict[str, dict[str, float]]], summar
         f"- Numeric: {', '.join(f'`{c}`' for c in NUMERIC_FEATURES)}.",
         "- Buyer and supplier history use only labels observable before the signing date "
         "(end date + 180 days), smoothed toward the training-period rate.",
+        "- Election calendar: whether the signing day and the planned end fall in the four "
+        "months before an ordinary election, when Ley 996 de 2005 restricts contracting, and the "
+        "days from the planned end to the next election. They describe a pattern (contracts "
+        "ending in that window are extended more often), not a cause.",
         "- Excluded: current contract value (already includes additions), current end date and "
         "stated duration (moved by extensions), added days, contract status (stale), payments, "
         "identifiers and supplier names.",

@@ -9,6 +9,8 @@ const metrics = (pr: number, roc: number, p5: number, base: number) => ({
   base_rate: { pr_auc: base, roc_auc: 0.5, precision_at_top: base, positive_rate: base },
 });
 
+const state = vi.hoisted(() => ({ features: [] as string[] }));
+
 vi.mock("../lib/data", () => ({
   loadAmendmentSize: () => Promise.resolve({
     since: "2026-11-14", n_contracts_observed: 5710920, n_increased: 2485,
@@ -27,7 +29,7 @@ vi.mock("../lib/data", () => ({
   }),
   loadSummary: () => Promise.resolve({
     min_n: 30, n_closed: 2410377, observed_period: ["2022-01-01", "2025-01-01"],
-    as_of: "2026-11-14", bundle_version: "2026-11-14",
+    as_of: "2026-11-14", bundle_version: "2026-11-14", model_features: state.features,
     model_metrics: {
       has_value_addition: metrics(0.243, 0.758, 0.344, 0.079),
       has_time_extension: metrics(0.323, 0.763, 0.448, 0.113),
@@ -44,6 +46,21 @@ describe("Methodology page", () => {
     expect(screen.getAllByText(/not allegations of wrongdoing/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /model card/i })).toHaveAttribute("href",
       expect.stringContaining("docs/model-card.md"));
+  });
+});
+
+
+describe("Methodology election features", () => {
+  it("mentions the election calendar only when the production model uses it", async () => {
+    state.features.length = 0;
+    const { unmount } = render(<MemoryRouter><Methodology /></MemoryRouter>);
+    await screen.findByText("0.243");
+    expect(screen.queryByText(/Ley 996 de 2005/)).not.toBeInTheDocument();
+    unmount();
+
+    state.features.push("planned_end_in_restriction");
+    render(<MemoryRouter><Methodology /></MemoryRouter>);
+    expect(await screen.findByText(/Ley 996 de 2005/)).toBeInTheDocument();
   });
 });
 

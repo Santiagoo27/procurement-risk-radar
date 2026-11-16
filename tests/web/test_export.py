@@ -179,6 +179,13 @@ def test_predicted_layer_flagged_unavailable_when_too_few_open_contracts(setup):
     assert summary["min_open_for_predicted_layer"] == 10_000
 
 
+def test_summary_lists_the_features_the_production_models_use(setup):
+    from procurement_risk.serving.bundle import FEATURES
+
+    _, _, out, _ = setup
+    assert read(out / "summary.json")["model_features"] == FEATURES
+
+
 def test_zero_value_contracts_are_not_listed(setup):
     _, _, out, _ = setup
     top = read(out / "entities" / "antioquia.json")["E1"]["top_open"]

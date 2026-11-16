@@ -18,6 +18,7 @@ export interface Summary {
   };
   model_metrics: Record<string, Record<string, Metrics>>;
   bundle_version: string;
+  model_features?: string[];
   coverage: { department_share: number; municipality_share: number };
 }
 
