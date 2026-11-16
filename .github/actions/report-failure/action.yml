@@ -1,0 +1,27 @@
+name: Report pipeline failure
+description: Open a GitHub issue for a failed pipeline, or comment on the open one.
+inputs:
+  title:
+    description: Issue title (one open issue per title)
+    required: true
+  body:
+    description: Markdown body
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TITLE: ${{ inputs.title }}
+        BODY: ${{ inputs.body }}
+      run: |
+        gh label create pipeline --color B60205 \
+          --description "Automated pipeline failure" 2>/dev/null || true
+        number=$(gh issue list --state open --label pipeline --limit 50 \
+          --json number,title -q ".[] | select(.title == env.TITLE) | .number" | head -1)
+        if [ -n "$number" ]; then
+          gh issue comment "$number" --body "$BODY"
+        else
+          gh issue create --title "$TITLE" --label pipeline --body "$BODY"
+        fi

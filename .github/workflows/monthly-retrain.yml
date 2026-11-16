@@ -1,0 +1,124 @@
+name: Monthly retrain
+
+# On the 1st of each month: retrain both models on a rolling temporal split and compare them
+# with the production models on the same test rows. If the new models pass the promotion
+# gate, publish a DRAFT release with the new bundle and open a pull request. Nothing reaches
+# production until the owner publishes the release and merges the PR.
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: monthly-retrain
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+      SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra train
+
+      - name: Dates and production model
+        id: meta
+        run: |
+          echo "as_of=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          echo "bundle=$(sed -n 's/^ARG BUNDLE_TAG=//p' Dockerfile.render)" >> "$GITHUB_OUTPUT"
+
+      - name: Download the production model bundle
+        run: |
+          gh release download "${{ steps.meta.outputs.bundle }}" \
+            -p serving_bundle.tar.gz -p serving_bundle.sha256
+          sha256sum -c serving_bundle.sha256
+          tar --no-same-owner -xzf serving_bundle.tar.gz
+
+      - name: Download SECOP
+        run: bash scripts/ingest_all.sh "${{ steps.meta.outputs.as_of }}"
+
+      - name: Check data quality
+        run: |
+          set -o pipefail
+          uv run python -m procurement_risk check-quality --raw data/raw \
+            --out data/quality.json --run-date "${{ steps.meta.outputs.as_of }}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Retrain and compare with production
+        run: |
+          uv run python -m procurement_risk retrain --raw data/raw --bundle serving_bundle \
+            --as-of "${{ steps.meta.outputs.as_of }}" --out data/retrain
+          cat data/retrain/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the report and MLflow runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrain-${{ steps.meta.outputs.as_of }}
+          path: |
+            data/retrain/report.md
+            data/retrain/decision.json
+            data/retrain/mlflow.db
+          if-no-files-found: ignore
+
+      - name: Decision
+        id: decision
+        run: echo "promote=$(jq -r .promote data/retrain/decision.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish a draft release and open a pull request
+        if: steps.decision.outputs.promote == 'true'
+        env:
+          AS_OF: ${{ steps.meta.outputs.as_of }}
+        run: |
+          TAG="model-$AS_OF"
+          BRANCH="model/$AS_OF"
+          uv run python -m procurement_risk export-bundle --raw data/raw \
+            --dataset data/retrain/dataset.parquet --models data/retrain/models \
+            --out data/new_bundle --as-of "$AS_OF" --rolling-split
+          rm -rf serving_bundle && mv data/new_bundle serving_bundle
+          tar --owner=0 --group=0 -czf serving_bundle.tar.gz serving_bundle
+          sha256sum serving_bundle.tar.gz > serving_bundle.sha256
+          gh release create "$TAG" serving_bundle.tar.gz serving_bundle.sha256 --draft \
+            --title "Model bundle $AS_OF" --notes-file data/retrain/report.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          sed -i "s/^ARG BUNDLE_TAG=.*/ARG BUNDLE_TAG=$TAG/" Dockerfile.render
+          cp data/retrain/figures/*.png docs/figures/
+          uv run python -m procurement_risk model-card --dataset data/retrain/dataset.parquet \
+            --models data/retrain/models --out docs/model-card.md --rolling-as-of "$AS_OF"
+          git add Dockerfile.render docs/model-card.md docs/figures
+          git commit -m "model: promote $AS_OF"
+          git push -u origin "$BRANCH"
+          {
+            cat data/retrain/report.md
+            echo
+            echo "Draft release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
+            echo
+            echo "Before merging, update the results table in README.md from docs/model-card.md."
+          } > pr-body.md
+          gh pr create --base main --head "$BRANCH" --title "model: promote $AS_OF" \
+            --body-file pr-body.md
+
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/report-failure
+        with:
+          title: Monthly retrain failed
+          body: |
+            The monthly retrain failed on ${{ steps.meta.outputs.as_of }}. No model was published.
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            See docs/operations.md for what to do.

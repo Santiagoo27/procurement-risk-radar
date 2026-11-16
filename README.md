@@ -112,6 +112,22 @@ curl -s -X POST https://procurement-risk-radar-9p25.onrender.com/predict -H "Con
 
 See [docs/api.md](docs/api.md) for the fields, the response and the limitations.
 
+## Operations
+
+Three scheduled GitHub Actions workflows keep the system current. Details are in
+[docs/operations.md](docs/operations.md).
+
+- **Nightly:** archive SECOP contract values and end dates (`snapshot.yml`).
+- **Weekly:** download SECOP, check data quality, rescore open contracts, update the drift
+  and realized-performance monitoring and the amendment-size figures, and refresh the website
+  data (`weekly-refresh.yml`).
+- **Monthly:** retrain both models on a rolling split and compare them with production on
+  the same test rows. When the new models pass the promotion gate, the workflow publishes a
+  **draft** release and opens a pull request. A new model reaches production only after
+  the release is published and the pull request is merged (`monthly-retrain.yml`).
+- **Failures:** they open a GitHub issue labelled `pipeline`, and nothing is published from
+  a bad download.
+
 ## Data audit
 
 Key findings from the audit (contracts signed 2021–2022, 1.27M contracts):

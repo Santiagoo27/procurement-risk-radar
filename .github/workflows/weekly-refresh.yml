@@ -1,0 +1,96 @@
+name: Weekly refresh
+
+# Every Sunday: download SECOP, check data quality, rescore with the production model,
+# update monitoring and amendment-size figures, and commit the website data if it changed.
+on:
+  schedule:
+    - cron: "0 9 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: weekly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+      SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+
+      - name: Dates and production model
+        id: meta
+        run: |
+          echo "as_of=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          echo "bundle=$(sed -n 's/^ARG BUNDLE_TAG=//p' Dockerfile.render)" >> "$GITHUB_OUTPUT"
+
+      - name: Download the production model bundle
+        run: |
+          gh release download "${{ steps.meta.outputs.bundle }}" \
+            -p serving_bundle.tar.gz -p serving_bundle.sha256
+          sha256sum -c serving_bundle.sha256
+          tar --no-same-owner -xzf serving_bundle.tar.gz
+
+      - name: Download SECOP
+        run: bash scripts/ingest_all.sh "${{ steps.meta.outputs.as_of }}"
+
+      - name: Check data quality
+        run: |
+          set -o pipefail
+          uv run python -m procurement_risk check-quality --raw data/raw \
+            --previous web/public/data/quality.json --out data/quality.json \
+            --run-date "${{ steps.meta.outputs.as_of }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Rescore and export website data
+        run: |
+          uv run python -m procurement_risk export-web-data --raw data/raw \
+            --bundle serving_bundle --out web/public/data --as-of "${{ steps.meta.outputs.as_of }}"
+          cp data/quality.json web/public/data/quality.json
+
+      - name: Monitoring
+        run: |
+          uv run python -m procurement_risk monitor --raw data/raw --bundle serving_bundle \
+            --as-of "${{ steps.meta.outputs.as_of }}" --out web/public/data/monitoring.json
+
+      - name: Amendment size from the snapshot archive
+        run: |
+          mkdir -p data/snapshots
+          gh release download snapshots -p "*.parquet" -D data/snapshots
+          uv run python -m procurement_risk amendment-size --snapshots data/snapshots \
+            --out web/public/data/amendment-size.json
+
+      - name: Commit website data if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data
+          if git diff --cached --quiet; then
+            echo "No changes to commit." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "data: weekly refresh ${{ steps.meta.outputs.as_of }}"
+            git push
+            echo "Committed website data." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/report-failure
+        with:
+          title: Weekly refresh failed
+          body: |
+            The weekly refresh failed on ${{ steps.meta.outputs.as_of }}. Nothing was published.
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            If the data-quality step failed, its report is in the run summary. See
+            docs/operations.md for what to do.
