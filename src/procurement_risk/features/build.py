@@ -10,6 +10,7 @@ import pandas as pd
 
 from procurement_risk.audit.metrics import open_audit_db
 from procurement_risk.canonical.colombia import build_canonical
+from procurement_risk.features.elections import election_features_sql
 from procurement_risk.features.history import build_history
 from procurement_risk.features.labels import build_labels
 
@@ -27,6 +28,7 @@ NUMERIC_FEATURES: tuple[str, ...] = (
     "advance_payment_enabled", "extendable_clause",
     "buyer_prior_n", "buyer_prior_value_addition_rate", "buyer_prior_extension_rate",
     "supplier_prior_n", "supplier_prior_value_addition_rate", "supplier_prior_extension_rate",
+    "signed_in_restriction", "planned_end_in_restriction", "days_end_to_next_election",
 )
 TARGETS: tuple[str, ...] = ("has_value_addition", "has_time_extension")
 
@@ -50,7 +52,7 @@ def _global_rates(con, train_end: date = TRAIN_END) -> dict[str, float]:
 
 # Feature SQL shared by training (assemble_dataset) and serving (serving.scoring), so a
 # contract always gets the same features in both places.
-FEATURE_SELECT = """
+FEATURE_SELECT = f"""
         SELECT
             c.contract_id, c.signed_at, c.buyer_id,
             c.buyer_department, c.buyer_order, c.buyer_sector, c.buyer_branch,
@@ -72,6 +74,7 @@ FEATURE_SELECT = """
             c.n_responses, c.n_invited, c.n_lots,
             month(c.signed_at) AS signing_month,
             (month(c.signed_at) = 12)::INT AS signed_in_december,
+            {election_features_sql("c.signed_at", "c.planned_start_at", "c.planned_duration_days")}
             c.supplier_is_natural_person::INT AS supplier_is_natural_person,
             c.supplier_is_sme::INT AS supplier_is_sme,
             c.supplier_is_group::INT AS supplier_is_group,

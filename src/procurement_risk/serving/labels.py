@@ -34,4 +34,7 @@ FEATURE_LABELS: dict[str, str] = {
     "supplier_prior_n": "Supplier's number of past contracts",
     "supplier_prior_value_addition_rate": "Supplier's past value-addition rate",
     "supplier_prior_extension_rate": "Supplier's past extension rate",
+    "signed_in_restriction": "Signed in the 4 months before an election",
+    "planned_end_in_restriction": "Planned end in the 4 months before an election",
+    "days_end_to_next_election": "Days from planned end to the next election",
 }
