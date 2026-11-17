@@ -17,30 +17,33 @@ instance that sleeps when idle, so the first request can take about a minute.
 
 [![Map of value additions by municipality in Antioquia](docs/figures/web-map.png)](https://procurement-risk-radar.vercel.app)
 
-**Status:** Phases 0–3 are complete: data audit, model, API and web demo. See the
-[model card](docs/model-card.md), [API reference](docs/api.md), [data audit](docs/data-audit.md)
-and [geographic sources](docs/geo-sources.md). Next is Phase 4: scheduled scoring,
-retraining and monitoring.
+**Status:** Phases 0–4 are complete: data audit, model, API, web demo, and automated weekly
+scoring, monthly retraining and monitoring. See the [model card](docs/model-card.md),
+[API reference](docs/api.md), [operations](docs/operations.md), [data audit](docs/data-audit.md)
+and [geographic sources](docs/geo-sources.md).
 
 ## Results
 
-Trained on 3.47M closed contracts signed 2019–2024 and split by signing date: train before
-2023, validation 2023-H1, **test 2023-07 to 2024-12 (1.14M contracts)**. Every model is scored
-on the same test period.
+Production model `model-2026-11-16`, from the monthly retrain on a rolling split by signing
+date: train before 2023-11-16 (2.52M closed contracts), validation 2023-11-16 to 2024-05-16,
+**test 2024-05-16 to 2025-11-16 (1.39M contracts)**. Every model is scored on the same test
+rows.
 
 | Target | Model | PR-AUC | ROC-AUC | Precision in top 5% |
 |---|---|---:|---:|---:|
-| Value addition (7.9% of test) | Base rate | 0.079 | 0.500 | 0.078 |
-| | Buyer's historical rate | 0.178 | 0.697 | 0.247 |
-| | Logistic regression | 0.203 | 0.698 | 0.299 |
-| | **LightGBM (calibrated)** | **0.243** | **0.758** | **0.344** |
-| Time extension (11.3% of test) | Base rate | 0.113 | 0.500 | 0.111 |
-| | Buyer's historical rate | 0.247 | 0.706 | 0.392 |
-| | Logistic regression | 0.258 | 0.697 | 0.381 |
-| | **LightGBM (calibrated)** | **0.323** | **0.763** | **0.448** |
+| Value addition (8.3% of test) | Base rate | 0.083 | 0.500 | 0.085 |
+| | Buyer's historical rate | 0.190 | 0.698 | 0.289 |
+| | Logistic regression | 0.222 | 0.726 | 0.308 |
+| | **LightGBM (calibrated)** | **0.261** | **0.765** | **0.372** |
+| Time extension (16.3% of test) | Base rate | 0.161 | 0.500 | 0.163 |
+| | Buyer's historical rate | 0.323 | 0.680 | **0.512** |
+| | Logistic regression | 0.332 | 0.682 | 0.502 |
+| | **LightGBM (calibrated)** | **0.366** | **0.741** | 0.486 |
 
-Among the 5% of contracts the model ranks highest, **34% end up with a value addition**, which
-is 4.4 times the base rate. For time extensions the figure is 45%, or 4 times the base rate.
+Among the 5% of contracts the model ranks highest, **37% end up with a value addition**, which
+is 4.5 times the base rate. For time extensions the figure is 49%, or 3 times the base rate.
+There the buyer's own extension history alone does slightly better in the top 5% (51%), but
+LightGBM ranks the whole test period better (PR-AUC 0.366 against 0.323).
 
 <p>
   <img src="docs/figures/has_value_addition-pr-curves.png" width="32%" alt="Precision-recall curves, value addition">
