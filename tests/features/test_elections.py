@@ -70,3 +70,24 @@ def test_after_the_calendar_gives_null(bundle):
     row = features(bundle, signed_at="2041-01-01", planned_start_at="2041-01-01",
                    planned_duration_days=30)
     assert row.isna().all()
+
+
+def test_features_are_a_plain_expression():
+    # A correlated subquery per row makes DuckDB materialize the whole feature join several
+    # times (5 GB extra on 3.5M contracts), which stalled the weekly refresh on GitHub.
+    from procurement_risk.features.elections import election_features_sql
+
+    assert "select" not in election_features_sql("s", "p", "d").lower()
+
+
+def test_next_election_on_an_election_day_and_between_days():
+    import duckdb
+
+    from procurement_risk.features.elections import election_features_sql
+
+    sql = election_features_sql("s", "s", "d")
+    rows = duckdb.sql(f"""
+        SELECT {sql} 1 AS x FROM (VALUES (DATE '2023-10-29', 0), (DATE '2023-10-30', 0),
+                                          (DATE '2040-01-01', 0)) t(s, d)
+    """).fetchall()
+    assert [r[2] for r in rows] == [0, (date(2026, 3, 8) - date(2023, 10, 30)).days, None]

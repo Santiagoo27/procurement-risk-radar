@@ -40,10 +40,14 @@ RESTRICTION_DAYS = 122  # four months
 
 
 def _next_election(day_sql: str) -> str:
-    """SQL for the first election day on or after `day_sql` (NULL after the calendar)."""
-    values = ", ".join(f"(DATE '{d.isoformat()}')" for d in ELECTION_DAYS)
-    return (f"(SELECT min(e.day) FROM (VALUES {values}) AS e(day) "
-            f"WHERE e.day >= CAST({day_sql} AS DATE))")
+    """SQL for the first election day on or after `day_sql` (NULL after the calendar).
+
+    A plain CASE, not a subquery: DuckDB decorrelates a per-row subquery by materializing
+    the whole outer join, which costs gigabytes on the full contract table."""
+    day = f"CAST({day_sql} AS DATE)"
+    whens = " ".join(f"WHEN {day} <= DATE '{d.isoformat()}' THEN DATE '{d.isoformat()}'"
+                     for d in sorted(ELECTION_DAYS))
+    return f"(CASE {whens} END)"
 
 
 def election_features_sql(signed_sql: str, start_sql: str, duration_sql: str) -> str:
