@@ -167,4 +167,6 @@ def test_retrain_keeps_the_champion_for_a_target_that_did_not_improve(tmp_path, 
     card = tmp_path / "card.md"
     cli.main(["model-card", "--dataset", str(dataset), "--models", str(final),
               "--out", str(card), "--rolling-as-of", AS_OF.isoformat()])
-    assert "kept from `demo`" in card.read_text(encoding="utf-8")
+    text = card.read_text(encoding="utf-8")
+    assert "kept from `demo`" in text
+    assert f"180 days before {AS_OF.isoformat()}" in text

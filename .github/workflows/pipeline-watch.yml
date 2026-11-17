@@ -1,0 +1,47 @@
+name: Pipeline watch
+
+# Safety net for failures the pipelines cannot report themselves. Their own "Report failure"
+# step does not run when the runner is lost (out of memory, "lost communication") or the job
+# hits its time limit. This workflow runs on a fresh runner after each pipeline finishes and
+# opens or comments on the issue unless that run already reported itself. A run you cancel
+# by hand is not reported.
+on:
+  workflow_run:
+    workflows: ["Weekly refresh", "Monthly retrain", "Nightly snapshot"]
+    types: [completed]
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Did the run report itself?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          # The pipelines' own reports link to their run; look for that link in open issues.
+          found=$(gh issue list --state open --label pipeline --limit 50 --json number \
+            -q '.[].number' | while read -r n; do
+              gh issue view "$n" --json body,comments \
+                -q '[.body, .comments[].body] | join("\n")'
+            done | grep -cF "$RUN_URL" || true)
+          echo "reported=$([ "${found:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Report failure
+        if: steps.check.outputs.reported == 'false'
+        uses: ./.github/actions/report-failure
+        with:
+          title: ${{ github.event.workflow_run.name }} failed
+          body: |
+            The ${{ github.event.workflow_run.name }} run ended with `${{ github.event.workflow_run.conclusion }}` without reporting itself. This usually means the runner ran out of memory or the job hit its time limit. Nothing was published.
+
+            Run: ${{ github.event.workflow_run.html_url }}
+
+            See docs/operations.md for what to do.

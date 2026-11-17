@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import joblib
@@ -164,8 +165,9 @@ def run_experiment(
     return results
 
 
-def dataset_summary(dataset_path: Path, split_dates: tuple | None = None) -> dict:
-    """Summary of the training dataset for the model card."""
+def dataset_summary(dataset_path: Path, split_dates: tuple | None = None,
+                    as_of: date | None = None) -> dict:
+    """Summary of the training dataset for the model card; `as_of` is the labelling cutoff."""
     from procurement_risk.model.split import TEST_END, TRAIN_END, VALID_END
 
     dates = split_dates or (TRAIN_END, VALID_END, TEST_END)
@@ -182,4 +184,5 @@ def dataset_summary(dataset_path: Path, split_dates: tuple | None = None) -> dic
         "split_sizes": {"train": len(splits.train), "valid": len(splits.valid),
                         "test": len(splits.test)},
         "split_dates": [d.isoformat() for d in dates],
+        **({"as_of": as_of.isoformat()} if as_of else {}),
     }

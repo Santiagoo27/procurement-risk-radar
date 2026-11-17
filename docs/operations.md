@@ -69,9 +69,14 @@ the per-target gate decides as usual. Election days follow the legal calendar up
 
 ## When a pipeline fails
 
-Any failure opens an issue labelled `pipeline`, titled "Weekly refresh failed" or "Monthly
-retrain failed". Later failures add comments to the same issue. A failed run publishes
-nothing, so the site and the API keep their last good state.
+Any failure opens an issue labelled `pipeline`, titled "Weekly refresh failed", "Monthly
+retrain failed" or "Nightly snapshot failed". Later failures add comments to the same issue.
+A failed run publishes nothing, so the site and the API keep their last good state.
+
+The pipelines report their own failures. When the runner itself dies (out of memory, "lost
+communication with the server") or a job hits its time limit, that step never runs, so
+[`pipeline-watch.yml`](../.github/workflows/pipeline-watch.yml) reports it from a fresh
+runner. A run you cancel by hand is not reported.
 
 The most common cause is a **data-quality failure**. The run summary shows a table of
 checks:

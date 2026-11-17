@@ -12,7 +12,7 @@ decisions about individual people or suppliers.
 ## Data
 
 - Source: SECOP II open data (datos.gov.co), contracts signed 2019-01-01 to 2026-11-13; 4,510,521 closed contracts.
-- Closed contract: planned end date (planned start + planned duration, falling back to the current end date) at least 180 days before 2026-11-14. Only closed contracts are labelled. The current end date is not used because extensions move it, which would drop extended contracts from recent periods.
+- Closed contract: planned end date (planned start + planned duration, falling back to the current end date) at least 180 days before 2026-11-16. Only closed contracts are labelled. The current end date is not used because extensions move it, which would drop extended contracts from recent periods.
 - `has_value_addition` (10.5% positive): an explicit 'Adicion en el valor' amendment, or a generic amendment whose text describes a value addition (see [data audit](data-audit.md)).
 - `has_time_extension` (13.6% positive): added days > 0 or an 'Extension' amendment.
 - Temporal split by signing date: train before 2023-11-16 (2,521,447), validation 2023-11-16 to 2024-05-16 (463,849), test 2024-05-16 to 2025-11-16 (1,388,450).

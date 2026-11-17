@@ -222,8 +222,8 @@ def _run_model_card(args: argparse.Namespace) -> None:
         target: list(joblib.load(args.models / target / "model.joblib").feature_names)
         for target in results if (args.models / target / "model.joblib").exists()
     }
-    write_model_card(results, dataset_summary(args.dataset, split_dates=dates), args.out,
-                     sources=sources, model_features=model_features)
+    summary = dataset_summary(args.dataset, split_dates=dates, as_of=args.rolling_as_of)
+    write_model_card(results, summary, args.out, sources=sources, model_features=model_features)
     print(f"wrote {args.out}")
 
 
