@@ -11,19 +11,20 @@ decisions about individual people or suppliers.
 
 ## Data
 
-- Source: SECOP II open data (datos.gov.co), contracts signed 2019-01-01 to 2024-12-31; 3,468,109 closed contracts.
+- Source: SECOP II open data (datos.gov.co), contracts signed 2019-01-01 to 2026-11-13; 4,510,521 closed contracts.
 - Closed contract: planned end date (planned start + planned duration, falling back to the current end date) at least 180 days before 2026-11-14. Only closed contracts are labelled. The current end date is not used because extensions move it, which would drop extended contracts from recent periods.
-- `has_value_addition` (10.9% positive): an explicit 'Adicion en el valor' amendment, or a generic amendment whose text describes a value addition (see [data audit](data-audit.md)).
-- `has_time_extension` (11.3% positive): added days > 0 or an 'Extension' amendment.
-- Temporal split by signing date: train before 2023-01-01 (1,762,947), validation 2023-H1 (565,140), test 2023-07-01 to 2024-12-31 (1,140,022).
+- `has_value_addition` (10.5% positive): an explicit 'Adicion en el valor' amendment, or a generic amendment whose text describes a value addition (see [data audit](data-audit.md)).
+- `has_time_extension` (13.6% positive): added days > 0 or an 'Extension' amendment.
+- Temporal split by signing date: train before 2023-11-16 (2,521,447), validation 2023-11-16 to 2024-05-16 (463,849), test 2024-05-16 to 2025-11-16 (1,388,450).
 
 ## Features
 
 Only information known at signing time.
 
 - Categorical: `buyer_department`, `buyer_order`, `buyer_sector`, `buyer_branch`, `buyer_centralized`, `procurement_method`, `contract_type`, `category_segment`, `funding_source`.
-- Numeric: `log_award_value`, `log_tender_budget`, `award_to_budget_ratio`, `planned_duration_days`, `days_publication_to_signing`, `days_signing_to_start`, `n_bidders`, `single_bidder`, `n_responses`, `n_invited`, `n_lots`, `signing_month`, `signed_in_december`, `supplier_is_natural_person`, `supplier_is_sme`, `supplier_is_group`, `advance_payment_enabled`, `extendable_clause`, `buyer_prior_n`, `buyer_prior_value_addition_rate`, `buyer_prior_extension_rate`, `supplier_prior_n`, `supplier_prior_value_addition_rate`, `supplier_prior_extension_rate`.
+- Numeric: `log_award_value`, `log_tender_budget`, `award_to_budget_ratio`, `planned_duration_days`, `days_publication_to_signing`, `days_signing_to_start`, `n_bidders`, `single_bidder`, `n_responses`, `n_invited`, `n_lots`, `signing_month`, `signed_in_december`, `supplier_is_natural_person`, `supplier_is_sme`, `supplier_is_group`, `advance_payment_enabled`, `extendable_clause`, `buyer_prior_n`, `buyer_prior_value_addition_rate`, `buyer_prior_extension_rate`, `supplier_prior_n`, `supplier_prior_value_addition_rate`, `supplier_prior_extension_rate`, `signed_in_restriction`, `planned_end_in_restriction`, `days_end_to_next_election`.
 - Buyer and supplier history use only labels observable before the signing date (end date + 180 days), smoothed toward the training-period rate.
+- Election calendar: whether the signing day and the planned end fall in the four months before an ordinary election, when Ley 996 de 2005 restricts contracting, and the days from the planned end to the next election. They describe a pattern (contracts ending in that window are extended more often), not a cause.
 - Excluded: current contract value (already includes additions), current end date and stated duration (moved by extensions), added days, contract status (stale), payments, identifiers and supplier names.
 
 ## Evaluation (test split)
@@ -34,10 +35,10 @@ Ranking metrics (PR-AUC, ROC-AUC, precision and recall in the top 5%) use raw Li
 
 | Model | PR-AUC | ROC-AUC | Brier | Log loss | Precision @ top 5% | Recall @ top 5% |
 |---|---:|---:|---:|---:|---:|---:|
-| Base rate | 0.079 | 0.500 | 0.0744 | 0.2853 | 0.078 | 0.050 |
-| Buyer history rate | 0.178 | 0.697 | 0.0727 | 0.2671 | 0.247 | 0.157 |
-| Logistic regression | 0.203 | 0.698 | 0.0688 | 0.2575 | 0.299 | 0.190 |
-| LightGBM (calibrated) | 0.243 | 0.758 | 0.0673 | 0.2475 | 0.344 | 0.218 |
+| Base rate | 0.083 | 0.500 | 0.0773 | 0.2929 | 0.085 | 0.051 |
+| Buyer history rate | 0.190 | 0.698 | 0.0745 | 0.2733 | 0.289 | 0.174 |
+| Logistic regression | 0.222 | 0.726 | 0.0711 | 0.2598 | 0.308 | 0.186 |
+| LightGBM (calibrated) | 0.261 | 0.765 | 0.0689 | 0.2508 | 0.372 | 0.224 |
 
 ![Precision-recall](figures/has_value_addition-pr-curves.png)
 ![Calibration](figures/has_value_addition-calibration.png)
@@ -47,10 +48,10 @@ Ranking metrics (PR-AUC, ROC-AUC, precision and recall in the top 5%) use raw Li
 
 | Model | PR-AUC | ROC-AUC | Brier | Log loss | Precision @ top 5% | Recall @ top 5% |
 |---|---:|---:|---:|---:|---:|---:|
-| Base rate | 0.113 | 0.500 | 0.1001 | 0.3525 | 0.111 | 0.049 |
-| Buyer history rate | 0.247 | 0.706 | 0.0943 | 0.3371 | 0.392 | 0.174 |
-| Logistic regression | 0.258 | 0.697 | 0.0942 | 0.3294 | 0.381 | 0.169 |
-| LightGBM (calibrated) | 0.323 | 0.763 | 0.0894 | 0.3095 | 0.448 | 0.199 |
+| Base rate | 0.161 | 0.500 | 0.1375 | 0.4524 | 0.163 | 0.051 |
+| Buyer history rate | 0.323 | 0.680 | 0.1291 | 0.4487 | 0.512 | 0.159 |
+| Logistic regression | 0.332 | 0.682 | 0.1288 | 0.4258 | 0.502 | 0.156 |
+| LightGBM (calibrated) | 0.366 | 0.741 | 0.1222 | 0.4045 | 0.486 | 0.151 |
 
 ![Precision-recall](figures/has_time_extension-pr-curves.png)
 ![Calibration](figures/has_time_extension-calibration.png)

@@ -3,7 +3,7 @@
 FROM python:3.13-slim
 
 ARG BUNDLE_REPO=Santiagoo27/procurement-risk-radar
-ARG BUNDLE_TAG=model-2026-11-14
+ARG BUNDLE_TAG=model-2026-11-16
 
 # LightGBM needs the OpenMP runtime; curl fetches the bundle.
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl \
